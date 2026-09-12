@@ -55,3 +55,6 @@ System packages (Arch package names shown; adjust for your distro):
 No installation step needed — it runs directly out of this checkout.
 Config lives at `~/.config/waltz/config.json`; thumbnail cache at
 `~/.cache/waltz/thumbnails/`.
+
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/L6N725GI1V)
