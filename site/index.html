@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waltz</title>
+<meta name="description" content="A GUI wallpaper engine for Linux Wayland compositors, built on mpvpaper.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --bg:#0c0d11;
+    --bg-panel:#15161c;
+    --bg-panel-2:#1b1d24;
+    --line:rgba(238,240,244,0.10);
+    --line-soft:rgba(238,240,244,0.06);
+    --ink:#edeef2;
+    --ink-dim:#9a9ca8;
+    --ink-faint:#6b6d78;
+    --gold:#d9a441;
+    --gold-soft:rgba(217,164,65,0.14);
+    --teal:#55bdb2;
+    --teal-soft:rgba(85,189,178,0.14);
+    --good:#6fb98f;
+    --font-display:"Fraunces", Georgia, "Iowan Old Style", serif;
+    --font-body:"Work Sans", -apple-system, "Segoe UI", sans-serif;
+    --font-mono:"IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  }
+
+  *{ box-sizing:border-box; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--font-body);
+    font-size:16px;
+    line-height:1.6;
+    padding-inline:24px;
+  }
+  img{ max-width:100%; }
+
+  .wrap{ max-width:1160px; margin-inline:auto; }
+
+  h1,h2,h3{
+    font-family:var(--font-display);
+    font-weight:600;
+    text-wrap:balance;
+    margin:0;
+    color:var(--ink);
+  }
+
+  a{ color:var(--teal); }
+
+  .eyebrow{
+    font-family:var(--font-mono);
+    font-size:12px;
+    letter-spacing:0.09em;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+
+  code, .mono{ font-family:var(--font-mono); }
+
+  /* ---------- top nav ---------- */
+  .nav{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding-block:22px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .nav .wordmark{
+    font-family:var(--font-display);
+    font-weight:600;
+    font-size:20px;
+    letter-spacing:0.01em;
+  }
+  .nav .wordmark em{ color:var(--gold); font-style:italic; }
+  .nav .meta{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--ink-faint);
+  }
+
+  /* ---------- hero ---------- */
+  .hero{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:56px;
+    align-items:center;
+    padding-block:64px 56px;
+  }
+  .hero h1{
+    font-size:clamp(2.4rem, 4.4vw, 3.6rem);
+    line-height:1.05;
+    margin-block:18px 20px;
+  }
+  .hero h1 em{ font-style:italic; color:var(--gold); }
+  .hero p.lede{
+    font-size:1.08rem;
+    color:var(--ink-dim);
+    max-width:46ch;
+    margin:0 0 26px;
+  }
+  .hero p.lede code{
+    background:var(--bg-panel-2);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:0.1em 0.4em;
+    color:var(--ink);
+    font-size:0.88em;
+  }
+  .term{
+    display:inline-flex;
+    align-items:center;
+    gap:10px;
+    font-family:var(--font-mono);
+    font-size:14px;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:11px 16px;
+    color:var(--ink);
+  }
+  .term .dollar{ color:var(--teal); }
+  .term .comment{ color:var(--ink-faint); }
+
+  .hero-shot{
+    position:relative;
+  }
+  .hero-shot .frame{
+    border-radius:12px;
+    overflow:hidden;
+    border:1px solid var(--line);
+    box-shadow:0 40px 80px -30px rgba(0,0,0,0.7), 0 2px 0 rgba(255,255,255,0.03) inset;
+    background:var(--bg-panel);
+  }
+  .hero-shot .frame img{ display:block; width:100%; }
+  .hero-shot .cap{
+    margin-top:12px;
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--ink-faint);
+  }
+
+  /* ---------- section shell ---------- */
+  section{ padding-block:56px; border-top:1px solid var(--line-soft); }
+  .section-head{ max-width:62ch; margin-bottom:36px; }
+  .section-head h2{ font-size:clamp(1.5rem, 2.6vw, 2rem); margin-top:10px; }
+  .section-head p{ color:var(--ink-dim); margin:12px 0 0; }
+
+  /* ---------- steps ---------- */
+  .steps{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:28px;
+  }
+  .step{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    padding-top:18px;
+    border-top:2px solid var(--gold-soft);
+  }
+  .step .num{
+    font-family:var(--font-mono);
+    color:var(--gold);
+    font-size:13px;
+  }
+  .step h3{ font-size:1.15rem; font-weight:600; }
+  .step p{ color:var(--ink-dim); margin:0; font-size:0.96rem; }
+
+  /* ---------- modes ---------- */
+  .modes{
+    display:grid;
+    grid-template-columns:repeat(3, 1fr);
+    gap:24px;
+  }
+  .mode-card{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:22px;
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+  }
+  .mode-card svg{ width:100%; height:auto; display:block; }
+  .mode-card h3{ font-size:1.1rem; }
+  .mode-card .tagline{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    color:var(--teal);
+  }
+  .mode-card p{ color:var(--ink-dim); font-size:0.93rem; margin:0; }
+
+  /* ---------- architecture ---------- */
+  .arch-figure{ margin:0; }
+  .arch-figure figcaption{
+    margin-top:14px;
+    color:var(--ink-faint);
+    font-size:0.88rem;
+    max-width:70ch;
+  }
+  .arch-quote{
+    margin:28px 0 0;
+    padding-left:18px;
+    border-left:2px solid var(--gold);
+    color:var(--ink-dim);
+    font-size:0.98rem;
+    max-width:64ch;
+  }
+
+  /* ---------- status ---------- */
+  .status{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:40px;
+  }
+  .status-col h3{
+    font-family:var(--font-mono);
+    font-size:12.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    font-weight:500;
+    margin-bottom:16px;
+  }
+  .status-col.shipped h3{ color:var(--good); }
+  .status-col.next h3{ color:var(--gold); }
+  .status-list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:14px; }
+  .status-list li{
+    display:flex;
+    gap:10px;
+    font-size:0.95rem;
+    color:var(--ink-dim);
+    line-height:1.5;
+  }
+  .status-list .mark{
+    font-family:var(--font-mono);
+    flex:none;
+    width:1.2em;
+  }
+  .status-col.shipped .mark{ color:var(--good); }
+  .status-col.next .mark{ color:var(--gold); }
+  .status-list b{ color:var(--ink); font-weight:600; }
+
+  /* ---------- get waltz ---------- */
+  .get{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:40px;
+    align-items:start;
+  }
+  .get .reqs{ color:var(--ink-dim); font-size:0.95rem; }
+  .get .reqs ul{ margin:14px 0 0; padding-left:0; list-style:none; display:flex; flex-direction:column; gap:8px; }
+  .get .reqs li{ display:flex; gap:10px; }
+  .get .reqs code{ color:var(--ink); font-size:0.88rem; }
+  .terminal{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .terminal .bar{
+    display:flex;
+    gap:6px;
+    padding:10px 14px;
+    border-bottom:1px solid var(--line);
+  }
+  .terminal .bar span{
+    width:9px; height:9px; border-radius:50%;
+    background:var(--line);
+  }
+  .terminal pre{
+    margin:0;
+    padding:18px 18px 20px;
+    font-family:var(--font-mono);
+    font-size:13px;
+    line-height:1.75;
+    color:var(--ink-dim);
+    overflow-x:auto;
+  }
+  .terminal .p{ color:var(--teal); }
+  .terminal .c{ color:var(--ink-faint); }
+  .terminal .o{ color:var(--ink); }
+
+  /* ---------- footer ---------- */
+  footer{
+    padding-block:36px 48px;
+    border-top:1px solid var(--line-soft);
+    display:flex;
+    justify-content:space-between;
+    align-items:baseline;
+    flex-wrap:wrap;
+    gap:12px;
+  }
+  footer .wordmark{ font-family:var(--font-display); font-style:italic; color:var(--ink-dim); }
+  footer .wordmark .by{
+    font-family:var(--font-mono);
+    font-style:normal;
+    font-size:12px;
+    color:var(--ink-faint);
+    margin-left:4px;
+  }
+  footer .credit{ font-family:var(--font-mono); font-size:12px; color:var(--ink-faint); }
+  footer .credit a{ color:var(--ink-faint); }
+
+  @media (max-width:820px){
+    .hero{ grid-template-columns:1fr; padding-block:40px 36px; }
+    .steps{ grid-template-columns:1fr; }
+    .modes{ grid-template-columns:1fr; }
+    .status{ grid-template-columns:1fr; gap:28px; }
+    .get{ grid-template-columns:1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="nav">
+    <span class="wordmark">W<em>a</em>ltz</span>
+    <span class="meta">v0.1 · core loop</span>
+  </div>
+
+  <section class="hero" style="border-top:none;">
+    <div>
+      <p class="eyebrow">for wlr-layer-shell compositors — niri · hyprland · sway</p>
+      <h1>Point, click, <em>waltz</em>.</h1>
+      <p class="lede">Waltz turns a folder of your own clips and gifs into a wallpaper picker — browse real thumbnails, click one, and it's live on your monitor. No <code>exec-once</code> lines, no hand-rolled <code>mpv</code> flags to remember.</p>
+      <div class="term">
+        <span class="dollar">$</span><span>./bin/waltz</span>
+        <span class="comment"># runs straight from the checkout</span>
+      </div>
+    </div>
+    <div class="hero-shot">
+      <div class="frame">
+        <img src="screenshot.png" alt="Waltz's thumbnail grid, showing a folder of video and gif wallpapers with a Singular/Clone/Span mode switcher in the header" />
+      </div>
+      <p class="cap">the actual app, mid-clone, on a two-monitor niri session</p>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">the loop</p>
+      <h2>Three clicks, not three configs</h2>
+      <p>This is the whole interaction. Everything else in Waltz exists to keep this fast.</p>
+    </div>
+    <div class="steps">
+      <div class="step">
+        <span class="num">01</span>
+        <h3>Point it at a folder</h3>
+        <p>Any mix of <code class="mono">.mp4</code>, <code class="mono">.mkv</code>, <code class="mono">.webm</code>, <code class="mono">.gif</code>. ffmpeg pulls one still frame per file for the grid — nothing gets preview-played live, that's expensive for no reason.</p>
+      </div>
+      <div class="step">
+        <span class="num">02</span>
+        <h3>Browse real thumbnails</h3>
+        <p>Cached to disk by content fingerprint, so reopening a folder you've already browsed costs nothing.</p>
+      </div>
+      <div class="step">
+        <span class="num">03</span>
+        <h3>Click to set it live</h3>
+        <p>Waltz shells out to <code class="mono">mpvpaper</code> immediately. Whatever was already running on that output gets killed first — <code class="mono">SIGKILL</code>, not a polite ask.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">multi-monitor</p>
+      <h2>One video, three ways to wear it</h2>
+      <p>Each mode is a genuinely different mechanism underneath, not just a UI toggle on the same behavior.</p>
+    </div>
+    <div class="modes">
+
+      <div class="mode-card">
+        <figure class="arch-figure">
+          <svg viewBox="0 0 220 110" role="img" aria-label="Two monitors, each fed by its own separate file and its own mpvpaper process">
+            <rect x="14" y="14" width="80" height="52" rx="3" fill="none" stroke="currentColor" opacity="0.5"/>
+            <rect x="126" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--teal)" opacity="0.9"/>
+            <line x1="54" y1="66" x2="54" y2="76" stroke="currentColor" opacity="0.5"/>
+            <line x1="166" y1="66" x2="166" y2="76" stroke="var(--teal)" opacity="0.9"/>
+            <rect x="30" y="86" width="48" height="14" rx="2" fill="none" stroke="currentColor" opacity="0.5"/>
+            <rect x="142" y="86" width="48" height="14" rx="2" fill="none" stroke="var(--teal)" opacity="0.9"/>
+            <text x="54" y="96" text-anchor="middle" font-size="8" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">a.mp4</text>
+            <text x="166" y="96" text-anchor="middle" font-size="8" fill="var(--teal)" font-family="IBM Plex Mono, monospace">b.gif</text>
+          </svg>
+        </figure>
+        <h3>Singular</h3>
+        <p class="tagline">one mpvpaper process per output</p>
+        <p>Every monitor gets its own independent file and its own process. Setting one never touches another.</p>
+      </div>
+
+      <div class="mode-card">
+        <figure class="arch-figure">
+          <svg viewBox="0 0 220 110" role="img" aria-label="One file feeding a single mpvpaper ALL process, which drives both monitors identically">
+            <rect x="86" y="82" width="48" height="14" rx="2" fill="none" stroke="var(--gold)"/>
+            <text x="110" y="92" text-anchor="middle" font-size="8" fill="var(--gold)" font-family="IBM Plex Mono, monospace">c.mp4</text>
+            <line x1="110" y1="82" x2="54" y2="66" stroke="var(--gold)" opacity="0.8"/>
+            <line x1="110" y1="82" x2="166" y2="66" stroke="var(--gold)" opacity="0.8"/>
+            <rect x="14" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--gold)"/>
+            <rect x="126" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--gold)"/>
+          </svg>
+        </figure>
+        <h3>Clone</h3>
+        <p class="tagline">mpvpaper ALL /path — one process</p>
+        <p>The same file everywhere, via mpvpaper's own <code class="mono">ALL</code> output — a single process, not N of them.</p>
+      </div>
+
+      <div class="mode-card">
+        <figure class="arch-figure">
+          <svg viewBox="0 0 220 110" role="img" aria-label="One wide canvas scaled to the combined bounding box of both monitors, then cropped in half, one crop per output">
+            <rect x="14" y="14" width="192" height="40" rx="3" fill="none" stroke="var(--teal)" stroke-dasharray="3 3" opacity="0.7"/>
+            <text x="110" y="9" text-anchor="middle" font-size="7.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">scale=3840:1080</text>
+            <line x1="14" y1="66" x2="14" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
+            <line x1="206" y1="66" x2="206" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
+            <line x1="110" y1="66" x2="110" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
+            <rect x="14" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.6"/>
+            <rect x="118" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.6"/>
+            <text x="58" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">crop 1/2</text>
+            <text x="162" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">crop 2/2</text>
+          </svg>
+        </figure>
+        <h3>Span</h3>
+        <p class="tagline">scale + crop + setdar, per output</p>
+        <p>No mpvpaper feature does this. Waltz scales the source to the bounding box of your real monitor geometry, then hands each output its own slice.</p>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">philosophy</p>
+      <h2>Built on mpvpaper, not reinvented</h2>
+      <p>Video-as-wallpaper on wlroots compositors is already a solved problem. Waltz doesn't touch a single pixel.</p>
+    </div>
+
+    <figure class="arch-figure">
+      <svg viewBox="0 0 720 120" role="img" aria-label="Waltz launches and tracks mpvpaper as a subprocess; mpvpaper renders through mpv into a wlr-layer-shell surface, which the compositor composites under every window">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+
+        <rect x="10" y="34" width="130" height="52" rx="6" fill="none" stroke="var(--gold)"/>
+        <text x="75" y="55" text-anchor="middle" font-size="13" fill="var(--gold)" font-family="IBM Plex Mono, monospace">Waltz</text>
+        <text x="75" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">GTK4 GUI</text>
+
+        <line x1="140" y1="60" x2="222" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="181" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">launches, tracks pid</text>
+
+        <rect x="225" y="34" width="130" height="52" rx="6" fill="none" stroke="currentColor"/>
+        <text x="290" y="55" text-anchor="middle" font-size="13" fill="currentColor" font-family="IBM Plex Mono, monospace">mpvpaper</text>
+        <text x="290" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">wraps mpv</text>
+
+        <line x1="355" y1="60" x2="437" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="396" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">renders into</text>
+
+        <rect x="440" y="34" width="140" height="52" rx="6" fill="none" stroke="var(--teal)"/>
+        <text x="510" y="55" text-anchor="middle" font-size="12.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">layer-shell</text>
+        <text x="510" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">background layer</text>
+
+        <line x1="580" y1="60" x2="662" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="621" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">composited by</text>
+
+        <text x="665" y="55" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">niri</text>
+        <text x="665" y="70" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">Hyprland</text>
+        <text x="665" y="85" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">Sway</text>
+      </svg>
+      <figcaption>Waltz's whole job stops at the second box: launch mpvpaper, remember its PID, and kill it cleanly when the wallpaper changes.</figcaption>
+    </figure>
+
+    <p class="arch-quote">Killing it turned out to be the interesting part: mpvpaper registers a <code class="mono">SIGTERM</code> handler that doesn't actually exit on it — confirmed by leaving an uncontested instance running 10 seconds past the signal. Waltz sends <code class="mono">SIGKILL</code> instead. There's no player state worth preserving in a wallpaper.</p>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">where it stands</p>
+      <h2>Shipped, and what's next</h2>
+    </div>
+    <div class="status">
+      <div class="status-col shipped">
+        <h3>Working today</h3>
+        <ul class="status-list">
+          <li><span class="mark">✓</span><span><b>Thumbnail browser</b> — GTK4 + libadwaita, ffmpeg frame extraction, disk-cached.</span></li>
+          <li><span class="mark">✓</span><span><b>Monitor detection</b> — auto-picks whichever compositor IPC answers: <code class="mono">niri msg</code>, <code class="mono">hyprctl</code>, or <code class="mono">swaymsg</code>.</span></li>
+          <li><span class="mark">✓</span><span><b>Singular, Clone, and Span</b> modes, each a distinct mpvpaper invocation strategy.</span></li>
+          <li><span class="mark">✓</span><span><b>Tray icon</b> — open, stop, quit — running as its own process, since AyatanaAppIndicator3's GTK3 menu can't share a process with the GTK4 window.</span></li>
+          <li><span class="mark">✓</span><span><b>Clean handoff</b> — any process already bound to an output, Waltz's own or a stray one, is found via <code class="mono">/proc</code> and killed before a new one claims it.</span></li>
+        </ul>
+      </div>
+      <div class="status-col next">
+        <h3>Not yet</h3>
+        <ul class="status-list">
+          <li><span class="mark">→</span><span><b>Startup persistence</b> — relaunching the saved per-monitor config automatically when Waltz (re)starts.</span></li>
+          <li><span class="mark">→</span><span><b>Autostart registration</b> — writing its own launch entry for your session, replacing a hand-added <code class="mono">exec-once</code> line. Never touches your compositor config without asking first.</span></li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <p class="eyebrow">try it</p>
+      <h2>Get Waltz</h2>
+    </div>
+    <div class="get">
+      <div class="reqs">
+        <p>Not packaged anywhere yet — it runs straight out of a checkout. You'll need:</p>
+        <ul>
+          <li><code>mpvpaper</code> <span style="color:var(--ink-faint)">— the rendering backend</span></li>
+          <li><code>ffmpeg</code> <span style="color:var(--ink-faint)">— thumbnail extraction</span></li>
+          <li><code>python-gobject</code>, <code>gtk4</code>, <code>libadwaita</code> <span style="color:var(--ink-faint)">— the GUI</span></li>
+          <li><code>libayatana-appindicator</code> <span style="color:var(--ink-faint)">— the tray icon</span></li>
+        </ul>
+      </div>
+      <div class="terminal">
+        <div class="bar"><span></span><span></span><span></span></div>
+        <pre><span class="c"># from inside the checkout</span>
+<span class="p">$</span> <span class="o">./bin/waltz</span>
+
+<span class="c"># config and thumbnail cache live under</span>
+<span class="o">~/.config/waltz/config.json</span>
+<span class="o">~/.cache/waltz/thumbnails/</span></pre>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <span class="wordmark">Waltz <span class="by">(frontend by Torter)</span></span>
+    <span class="credit">rendering by <a href="https://github.com/GhostNaN/mpvpaper" target="_blank" rel="noopener">mpvpaper</a>, by GhostNaN</span>
+  </footer>
+
+</div>
+</body>
+</html>
