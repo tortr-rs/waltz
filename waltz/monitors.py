@@ -2,7 +2,7 @@
 
 Tries each compositor's own IPC in turn and uses whichever one actually
 answers. Niri, Hyprland, and Sway all expose enough JSON to build a
-normalized Monitor list that matches the output names mpvpaper expects.
+normalized Monitor list that matches the wl_output names waltzer-white expects.
 """
 
 import json

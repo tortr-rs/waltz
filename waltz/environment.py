@@ -1,7 +1,7 @@
 """Detects which desktop environment / session Waltz is running under, so
 the right wallpaper backend gets picked instead of assuming wlr-layer-shell
-(mpvpaper) works everywhere — it doesn't: GNOME's Mutter and KDE's KWin
-don't implement that protocol at all.
+works everywhere — it doesn't: GNOME's Mutter and KDE's KWin don't
+implement that protocol at all.
 """
 
 import os

@@ -1,29 +1,61 @@
 # Waltz
 
-A GUI wallpaper engine for Linux Wayland compositors (niri, Hyprland, Sway),
-using [mpvpaper](https://github.com/GhostNaN/mpvpaper) as the rendering
-backend. Point it at a folder of your own video/gif files, browse thumbnails,
-click one to set it as your wallpaper.
-
-Waltz does not render video itself — it shells out to mpvpaper (which uses
-wlr-layer-shell + mpv) and just manages that process per monitor.
+A GUI wallpaper engine for Linux. Point it at a folder of your own video/gif
+files, browse thumbnails, click one to set it as your wallpaper — per
+monitor, cloned to every monitor, or (on the mpvpaper-era backend) spanned
+across all of them as one canvas.
 
 ## Status
 
-Core loop only, for now: open the GUI, browse a folder's thumbnails, click
-one to apply it to your focused/primary monitor, stop it from the tray icon.
+Working: folder browsing with cached thumbnails, per-monitor assignment via
+a segmented target strip (Singular/Clone/Span), a "currently playing"
+indicator on the grid, startup persistence (relaunches your saved wallpaper
+automatically), opt-in autostart at login, and a tray icon (open/stop/quit).
 
-Not yet implemented: per-monitor assignment UI, persistence across reboots
-(auto-relaunching saved wallpapers on startup), and autostart registration.
+Not yet implemented: GNOME and KDE support (see below — researched, not
+wired up), and Span mode on the new Rust backend (see below).
+
+## Backends
+
+Waltz detects the session (`$XDG_SESSION_TYPE`/`$XDG_CURRENT_DESKTOP`) and
+picks a backend behind a common interface (`waltz/backends/`) — it doesn't
+assume one approach works everywhere:
+
+- **wlroots compositors (niri, Hyprland, Sway, ...)** — **waltzer-white**
+  (`waltzer-white/`), Waltz's own minimal Rust renderer: libmpv's render API
+  for decode, raw `wayland-client` + `wayland-protocols-wlr` for a
+  wlr-layer-shell-unstable-v1 background surface, EGL for the GL context.
+  Deliberately tiny (~380 lines) and deliberately has **no option
+  passthrough** — two CLI args only (output name, file path), hardware
+  decode/loop/mute hardcoded. That tradeoff means it can't yet do Span
+  mode's per-monitor crop filters; Singular and Clone work fully.
+- **Generic X11 (i3, bspwm, Openbox, ...)** — `xwinwrap` + `mpv`, embedding
+  into the root window, `xrandr` for monitor geometry. Implemented from
+  xwinwrap's documented usage; not verified against a live X server (this
+  project was built on a Wayland-only machine).
+- **GNOME** — not supported yet. Mutter doesn't implement wlr-layer-shell
+  (an open GNOME feature request with no timeline). The real path forward
+  is the [Hanabi](https://github.com/jeffshee/gnome-ext-hanabi) GNOME Shell
+  extension (genuinely does video wallpapers on GNOME Wayland, scriptable
+  via `gsettings`) — not wired up, since it requires the user to already
+  have it installed/enabled and doesn't support multiple monitors yet.
+- **KDE Plasma** — not supported yet. The closest option is the
+  [Smart Video Wallpaper Reborn](https://github.com/luisbocanegra/plasma-smart-video-wallpaper-reborn)
+  plugin, but it has no DBus/CLI control — only a config file that needs
+  `plasmashell` restarted (a disruptive full-shell reload) to pick up
+  changes. Waltz tells GNOME/KDE users this directly rather than silently
+  failing.
 
 ## Why this stack
 
 - **Python + GTK4 + libadwaita** for the GUI: native Wayland integration,
-  modern widgets (`Gtk.FileDialog`, `Adw.ToolbarView`/`Adw.Toast`) without
-  deprecated APIs, and fast iteration speed for a project this size.
-- **mpvpaper** as the rendering backend, run as a subprocess — it already
-  solves video-as-wallpaper via wlr-layer-shell reliably; reimplementing
-  that would be pure risk for no benefit.
+  modern widgets, fast iteration speed for a project this size.
+- **waltzer-white** (Rust) instead of shelling out to `mpvpaper` for
+  wlroots compositors: full control over the process without depending on
+  a third-party tool, at the cost of writing (and re-verifying) the
+  Wayland/EGL/mpv integration ourselves. `mpvpaper` was the original
+  backend and proved the approach; waltzer-white replaces it now that it's
+  built and tested.
 - **niri / Hyprland / Sway** monitor detection via each compositor's own
   IPC (`niri msg -j outputs`, `hyprctl -j monitors`, `swaymsg -t
   get_outputs`), auto-detected by whichever responds.
@@ -41,19 +73,25 @@ Not yet implemented: per-monitor assignment UI, persistence across reboots
 
 System packages (Arch package names shown; adjust for your distro):
 
-- `mpvpaper`
-- `ffmpeg`
-- `python-gobject`, `gtk4`, `libadwaita`
-- `libayatana-appindicator` (or `libappindicator-gtk3` as a fallback)
+- `ffmpeg` — thumbnail extraction
+- `python-gobject`, `gtk4`, `libadwaita` — the GUI
+- `libayatana-appindicator` (or `libappindicator-gtk3` as a fallback) — the tray icon
+- `rust` (`cargo`/`rustc`) — to build `waltzer-white`; not needed once it's built
+- `xwinwrap`, `xrandr` — only if you're on generic X11, not a wlroots compositor
+
+`mpvpaper` is no longer a dependency — waltzer-white replaced it on
+wlroots compositors.
 
 ## Running
 
 ```sh
+cd waltzer-white && cargo build --release && cd ..
 ./bin/waltz
 ```
 
-No installation step needed — it runs directly out of this checkout.
-Config lives at `~/.config/waltz/config.json`; thumbnail cache at
+No installation step needed beyond building waltzer-white once — Waltz
+runs directly out of this checkout. Config lives at
+`~/.config/waltz/config.json`; thumbnail cache at
 `~/.cache/waltz/thumbnails/`.
 
 

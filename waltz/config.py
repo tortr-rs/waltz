@@ -1,8 +1,7 @@
-"""Persisted Waltz configuration: known folders and per-monitor wallpaper assignments.
-
-This only persists state to disk; it does not (yet) relaunch mpvpaper on
-startup or touch compositor autostart config — that's a follow-up milestone.
-"""
+"""Persisted Waltz configuration: known folders and per-monitor wallpaper
+assignments. Read back on startup (see WaltzApplication._restore_saved_wallpaper)
+to relaunch whatever was last applied — this file never touches the
+compositor's own config, only Waltz's own state."""
 
 import json
 from pathlib import Path

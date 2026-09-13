@@ -1,3 +1,3 @@
-"""Waltz — a GUI wallpaper engine for Linux Wayland compositors, backed by mpvpaper."""
+"""Waltz — a GUI video wallpaper engine for Linux."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

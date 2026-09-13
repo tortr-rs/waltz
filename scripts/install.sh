@@ -1,11 +1,8 @@
 #!/usr/bin/env bash
 # Installs Waltz: system dependencies via the distro's own package manager,
-# then the app itself into ~/.local/share/waltz with a ~/.local/bin/waltz
-# launcher and an application-menu entry.
-#
-# Honest about its limits: mpvpaper isn't packaged everywhere. Where the
-# package manager doesn't have it, this prints how to build it from source
-# instead of pretending to handle every distro uniformly.
+# builds waltzer-white (the Rust wallpaper renderer) if it isn't already
+# built, then installs the app itself into ~/.local/share/waltz with a
+# ~/.local/bin/waltz launcher and an application-menu entry.
 set -euo pipefail
 
 SKIP_DEPS=0
@@ -15,8 +12,8 @@ for arg in "$@"; do
     -h|--help)
       echo "Usage: install.sh [--skip-deps]"
       echo "  --skip-deps   Only install the app itself; skip the package-manager step"
-      echo "                (use this if you already have mpvpaper, ffmpeg, GTK4,"
-      echo "                libadwaita, PyGObject, and libayatana-appindicator)."
+      echo "                (use this if you already have ffmpeg, GTK4, libadwaita,"
+      echo "                PyGObject, libayatana-appindicator, and Rust)."
       exit 0
       ;;
   esac
@@ -65,29 +62,19 @@ if [ "$SKIP_DEPS" -eq 1 ]; then
   info "Skipping system dependency install (--skip-deps)"
 elif [ "$MANAGER" = none ]; then
   warn "No supported package manager found (pacman/apt/dnf/zypper)."
-  warn "Install these manually, then re-run this script: mpvpaper, ffmpeg,"
-  warn "GTK4, libadwaita, PyGObject, libayatana-appindicator."
+  warn "Install these manually, then re-run this script: ffmpeg, GTK4,"
+  warn "libadwaita, PyGObject, libayatana-appindicator, Rust (cargo/rustc)."
 else
   info "Detected package manager: $MANAGER"
 
   # Packages that are simple everywhere this script supports.
   case "$MANAGER" in
-    pacman) COMMON=(ffmpeg gtk4 libadwaita python-gobject) ;;
-    apt)    COMMON=(ffmpeg libgtk-4-1 libadwaita-1-0 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1) ;;
-    dnf)    COMMON=(ffmpeg gtk4 libadwaita python3-gobject) ;;
-    zypper) COMMON=(ffmpeg gtk4 libadwaita python3-gobject) ;;
+    pacman) COMMON=(ffmpeg gtk4 libadwaita python-gobject rust) ;;
+    apt)    COMMON=(ffmpeg libgtk-4-1 libadwaita-1-0 python3-gi gir1.2-gtk-4.0 gir1.2-adw-1 cargo) ;;
+    dnf)    COMMON=(ffmpeg gtk4 libadwaita python3-gobject cargo) ;;
+    zypper) COMMON=(ffmpeg gtk4 libadwaita python3-gobject cargo) ;;
   esac
   install_pkgs "$MANAGER" "${COMMON[@]}" || warn "Some common packages failed — check the output above."
-
-  # mpvpaper: not in every distro's repos. Try, don't fail the whole install if absent.
-  if command -v mpvpaper >/dev/null; then
-    ok "mpvpaper already installed"
-  else
-    case "$MANAGER" in
-      pacman) install_pkgs pacman mpvpaper || MISSING_MANUAL+=("mpvpaper") ;;
-      *)      MISSING_MANUAL+=("mpvpaper") ;;
-    esac
-  fi
 
   # Tray icon library: package name varies a lot, and is AUR-only on
   # plain Arch. Try the common name, fall back to manual instructions.
@@ -104,13 +91,32 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 2. The app itself
+# 2. waltzer-white (the Rust renderer) — build it if it isn't already built
+# ---------------------------------------------------------------------------
+
+WALTZER_WHITE_BIN="$SRC_DIR/waltzer-white/target/release/waltzer-white"
+if [ -x "$WALTZER_WHITE_BIN" ]; then
+  ok "waltzer-white already built"
+elif command -v cargo >/dev/null; then
+  info "Building waltzer-white (cargo build --release)"
+  (cd "$SRC_DIR/waltzer-white" && cargo build --release) || MISSING_MANUAL+=("waltzer-white (build failed — see output above)")
+else
+  MISSING_MANUAL+=("waltzer-white (needs Rust/cargo to build — cd waltzer-white && cargo build --release)")
+fi
+
+# ---------------------------------------------------------------------------
+# 3. The app itself
 # ---------------------------------------------------------------------------
 
 info "Installing Waltz to $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 cp -r "$SRC_DIR/waltz" "$SRC_DIR/bin" "$SRC_DIR/README.md" "$INSTALL_DIR/"
 chmod +x "$INSTALL_DIR/bin/waltz"
+
+if [ -x "$WALTZER_WHITE_BIN" ]; then
+  mkdir -p "$INSTALL_DIR/waltzer-white/target/release"
+  cp "$WALTZER_WHITE_BIN" "$INSTALL_DIR/waltzer-white/target/release/"
+fi
 
 mkdir -p "$BIN_DIR"
 ln -sf "$INSTALL_DIR/bin/waltz" "$BIN_DIR/waltz"
@@ -119,6 +125,12 @@ ok "Linked $BIN_DIR/waltz -> $INSTALL_DIR/bin/waltz"
 mkdir -p "$APPS_DIR"
 sed "s|^Exec=waltz|Exec=$BIN_DIR/waltz|" "$SRC_DIR/waltz.desktop" > "$APPS_DIR/waltz.desktop"
 ok "Installed application-menu entry"
+
+ICON_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/512x512/apps"
+mkdir -p "$ICON_DIR"
+cp "$SRC_DIR/waltz/icons/hicolor/512x512/apps/com.waltz.Waltz.png" "$ICON_DIR/"
+command -v gtk4-update-icon-cache >/dev/null && gtk4-update-icon-cache -f -t "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor" 2>/dev/null
+ok "Installed application icon"
 
 case ":$PATH:" in
   *":$BIN_DIR:"*) ;;
@@ -131,8 +143,6 @@ if [ "${#MISSING_MANUAL[@]}" -gt 0 ]; then
   for pkg in "${MISSING_MANUAL[@]}"; do
     printf '    - %s\n' "$pkg"
   done
-  warn "mpvpaper: build from source if your distro doesn't package it —"
-  warn "  https://github.com/GhostNaN/mpvpaper"
 fi
 
 echo

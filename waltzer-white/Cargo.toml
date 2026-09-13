@@ -1,0 +1,20 @@
+[package]
+name = "waltzer-white"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "waltzer-white"
+path = "src/main.rs"
+
+[dependencies]
+libmpv2 = "6"
+wayland-client = { version = "0.31", features = ["system"] }
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+wayland-protocols = { version = "0.32", features = ["client"] }
+khronos-egl = { version = "6", features = ["dynamic"] }
+wayland-egl = "0.32"
+libloading = "0.8"
+
+[profile.release]
+opt-level = 2

@@ -11,17 +11,21 @@ import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gio, GLib
+from gi.repository import Adw, Gdk, Gio, GLib, Gtk
 
 from . import autostart
 from .backends import BackendUnavailable, UnsupportedBackend, select_backend
 from .config import Config
 from .dbus_service import WaltzDBusService
 from .monitors import Monitor, get_primary_monitor
-from .mpv_backend import DEFAULT_MPV_OPTIONS
 from .window import WaltzWindow
 
 APP_ID = "com.waltz.Waltz"
+
+# Stored in config for record-keeping only — no backend reads it back on
+# restore (each backend decides its own options internally), and
+# waltzer-white has no options to record in the first place.
+_NO_OPTIONS = ""
 
 
 class WaltzApplication(Adw.Application):
@@ -34,13 +38,15 @@ class WaltzApplication(Adw.Application):
         self._tray_proc = None
         self._restored_once = False
         # Every wallpaper change runs here, one at a time, off the GTK main
-        # thread: killing the renderer still costs real GPU-teardown time
-        # (see mpv_backend), and a single worker means rapid clicks queue in
-        # order instead of racing each other over the same output.
+        # thread: killing the renderer still costs real GPU-teardown time,
+        # and a single worker means rapid clicks queue in order instead of
+        # racing each other over the same output.
         self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="waltz-backend")
 
     def do_activate(self) -> None:
         if self.window is None:
+            self._load_css()
+            self._register_icon_theme()
             self.window = WaltzWindow(application=self, waltz_app=self)
             self.dbus_service.start()
             self._start_tray()
@@ -50,6 +56,23 @@ class WaltzApplication(Adw.Application):
             self._restored_once = True
             self._worker.submit(self._restore_saved_wallpaper)
         self.window.present()
+
+    def _load_css(self) -> None:
+        provider = Gtk.CssProvider()
+        provider.load_from_path(str(Path(__file__).parent / "style.css"))
+        Gtk.StyleContext.add_provider_for_display(
+            Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
+        )
+
+    def _register_icon_theme(self) -> None:
+        """GTK4 windows have no per-window set-icon call — the compositor
+        looks up an icon named after the app-id (APP_ID) in the icon theme
+        search paths. This adds our bundled icons/ dir (standard hicolor
+        layout) so that lookup succeeds even running straight from the
+        checkout, not just once actually installed (install.sh copies the
+        same file into ~/.local/share/icons/hicolor for that case)."""
+        icon_theme = Gtk.IconTheme.get_for_display(Gdk.Display.get_default())
+        icon_theme.add_search_path(str(Path(__file__).parent / "icons"))
 
     def _start_tray(self) -> None:
         try:
@@ -70,6 +93,14 @@ class WaltzApplication(Adw.Application):
 
     def _with_hint(self, message: str) -> str:
         return message + self.backend.hint if self.backend.hint else message
+
+    def _refresh_indicators(self) -> None:
+        def _update():
+            if self.window:
+                self.window.refresh_active_indicators()
+            return False
+
+        GLib.idle_add(_update)
 
     # -- startup persistence ----------------------------------------------
 
@@ -103,6 +134,7 @@ class WaltzApplication(Adw.Application):
                     restored += 1
                 if restored:
                     self._notify(f"Restored {restored} saved wallpaper(s)")
+            self._refresh_indicators()
         except BackendUnavailable:
             pass  # already surfaced once at startup; no need to repeat it here
 
@@ -130,7 +162,8 @@ class WaltzApplication(Adw.Application):
         except BackendUnavailable as e:
             self._notify(str(e), error=True)
             return
-        self.config.set_monitor_wallpaper(target.name, path, DEFAULT_MPV_OPTIONS)
+        self.config.set_monitor_wallpaper(target.name, path, _NO_OPTIONS)
+        self._refresh_indicators()
         self._notify(self._with_hint(f"Playing on {target.name}: {Path(path).name}"))
 
     def apply_clone(self, path) -> None:
@@ -148,9 +181,10 @@ class WaltzApplication(Adw.Application):
             self._notify(str(e), error=True)
             return
         assignments = {
-            m.name: {"path": str(path), "mpv_options": DEFAULT_MPV_OPTIONS} for m in monitors
+            m.name: {"path": str(path), "mpv_options": _NO_OPTIONS} for m in monitors
         }
         self.config.set_all_monitors(assignments, mode="clone", source_path=path)
+        self._refresh_indicators()
         self._notify(self._with_hint(f"Cloned to {len(monitors)} monitor(s): {Path(path).name}"))
 
     def apply_span(self, path) -> None:
@@ -168,9 +202,10 @@ class WaltzApplication(Adw.Application):
             self._notify(str(e), error=True)
             return
         assignments = {
-            m.name: {"path": str(path), "mpv_options": DEFAULT_MPV_OPTIONS} for m in monitors
+            m.name: {"path": str(path), "mpv_options": _NO_OPTIONS} for m in monitors
         }
         self.config.set_all_monitors(assignments, mode="span", source_path=path)
+        self._refresh_indicators()
         self._notify(
             self._with_hint(f"Spanned across {len(monitors)} monitors: {Path(path).name}")
         )
@@ -180,6 +215,7 @@ class WaltzApplication(Adw.Application):
 
     def _stop_wallpaper_worker(self) -> None:
         self.backend.stop_all()
+        self._refresh_indicators()
         self._notify("Wallpaper stopped")
 
     def show_main_window(self) -> None:

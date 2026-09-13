@@ -2,17 +2,23 @@
 
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import gi
 
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, Gtk, GLib, Pango
+gi.require_version("Gdk", "4.0")
+from gi.repository import Adw, Gdk, Gtk, GLib, Pango
 
 from .thumbnails import ensure_thumbnail, list_media_files
 
 THUMB_DISPLAY_WIDTH = 200
 THUMB_DISPLAY_HEIGHT = THUMB_DISPLAY_WIDTH * 9 // 16
+
+# One entry per segment in the target strip: ("monitor", output_name) for a
+# real monitor, or ("clone", None) / ("span", None) for the two quick actions.
+Target = Tuple[str, Optional[str]]
 
 
 class WaltzWindow(Adw.ApplicationWindow):
@@ -20,61 +26,24 @@ class WaltzWindow(Adw.ApplicationWindow):
         super().__init__(**kwargs)
         self.waltz_app = waltz_app
         self.set_title("Waltz")
-        self.set_default_size(900, 650)
+        self.set_default_size(960, 680)
 
         self._executor = ThreadPoolExecutor(max_workers=4)
-        self._current_folder: Path | None = None
+        self._current_folder: Optional[Path] = None
+
+        # path (resolved, as str) -> (card button, badge label), for the
+        # "currently playing" indicator
+        self._tiles: Dict[str, Tuple[Gtk.Button, Gtk.Label]] = {}
+        # button -> target it selects, for the segmented strip
+        self._target_buttons: List[Tuple[Gtk.ToggleButton, Target]] = []
+        # output name -> its subtitle label, updated on refresh
+        self._monitor_subtitles: Dict[str, Gtk.Label] = {}
+
+        self._pointer_cursor = self._load_custom_cursor()
 
         toolbar_view = Adw.ToolbarView()
-        header = Adw.HeaderBar()
-
-        open_button = Gtk.Button(label="Open Folder")
-        open_button.connect("clicked", self._on_open_folder_clicked)
-        header.pack_start(open_button)
-
-        mode_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-
-        self._monitor_names = [m.name for m in waltz_app.list_monitors()]
-        self._mode_dropdown = Gtk.DropDown(
-            model=Gtk.StringList.new(["Singular", "Clone", "Span"])
-        )
-        self._mode_dropdown.set_selected(0)
-        self._mode_dropdown.set_tooltip_text(
-            "Singular: one video per monitor\n"
-            "Clone: the same video mirrored on every monitor\n"
-            "Span: one video stretched across all monitors combined"
-        )
-        self._mode_dropdown.connect("notify::selected", self._on_mode_changed)
-        mode_box.append(self._mode_dropdown)
-
-        monitor_labels = self._monitor_names or ["(auto)"]
-        self._monitor_dropdown = Gtk.DropDown(model=Gtk.StringList.new(monitor_labels))
-        self._monitor_dropdown.set_selected(0)
-        self._monitor_dropdown.set_tooltip_text("Target monitor for Singular mode")
-        mode_box.append(self._monitor_dropdown)
-
-        header.pack_start(mode_box)
-
-        stop_button = Gtk.Button(label="Stop Wallpaper")
-        stop_button.add_css_class("destructive-action")
-        stop_button.connect("clicked", self._on_stop_clicked)
-        header.pack_end(stop_button)
-
-        autostart_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
-        autostart_box.set_valign(Gtk.Align.CENTER)
-        autostart_label = Gtk.Label(label="Start at login")
-        self._autostart_switch = Gtk.Switch()
-        self._autostart_switch.set_active(waltz_app.is_autostart_enabled())
-        self._autostart_switch.set_tooltip_text(
-            "Launch Waltz automatically at login via a standard XDG autostart\n"
-            "entry (~/.config/autostart) — never touches your compositor config."
-        )
-        self._autostart_switch.connect("notify::active", self._on_autostart_toggled)
-        autostart_box.append(autostart_label)
-        autostart_box.append(self._autostart_switch)
-        header.pack_end(autostart_box)
-
-        toolbar_view.add_top_bar(header)
+        toolbar_view.add_top_bar(self._build_header())
+        toolbar_view.add_top_bar(self._build_target_strip(waltz_app))
 
         self._toast_overlay = Adw.ToastOverlay()
 
@@ -114,11 +83,119 @@ class WaltzWindow(Adw.ApplicationWindow):
         folders = waltz_app.config.folders
         if folders:
             self._load_folder(Path(folders[-1]))
+        self.refresh_active_indicators()
+
+    # -- header / target strip construction --------------------------------
+
+    def _load_custom_cursor(self):
+        try:
+            texture = Gdk.Texture.new_from_filename(str(Path(__file__).parent / "cursor.svg"))
+            return Gdk.Cursor.new_from_texture(texture, 4, 3, Gdk.Cursor.new_from_name("pointer"))
+        except GLib.Error:
+            return None  # fall back to the default cursor rather than fail to open
+
+    def _apply_pointer_cursor(self, widget: Gtk.Widget) -> None:
+        if self._pointer_cursor is not None:
+            widget.set_cursor(self._pointer_cursor)
+
+    def _build_header(self) -> Adw.HeaderBar:
+        header = Adw.HeaderBar()
+
+        open_button = Gtk.Button(label="Open Folder")
+        open_button.add_css_class("suggested-action")
+        open_button.add_css_class("waltz-primary-action")
+        open_button.connect("clicked", self._on_open_folder_clicked)
+        header.pack_start(open_button)
+
+        stop_button = Gtk.Button(label="Stop Wallpaper")
+        stop_button.add_css_class("destructive-action")
+        stop_button.connect("clicked", self._on_stop_clicked)
+        header.pack_end(stop_button)
+
+        autostart_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        autostart_box.set_valign(Gtk.Align.CENTER)
+        autostart_label = Gtk.Label(label="Start at login")
+        autostart_label.add_css_class("dim-label")
+        self._autostart_switch = Gtk.Switch()
+        self._autostart_switch.set_active(self.waltz_app.is_autostart_enabled())
+        self._autostart_switch.set_tooltip_text(
+            "Launch Waltz automatically at login via a standard XDG autostart\n"
+            "entry (~/.config/autostart) — never touches your compositor config."
+        )
+        self._autostart_switch.connect("notify::active", self._on_autostart_toggled)
+        autostart_box.append(autostart_label)
+        autostart_box.append(self._autostart_switch)
+        header.pack_end(autostart_box)
+
+        return header
+
+    def _build_target_strip(self, waltz_app) -> Gtk.Box:
+        """One segmented control: a toggle per monitor (assign to just that
+        output), plus Clone (same file everywhere) and Span (stretched
+        across all of them) as two more segments. Whichever is active
+        decides what clicking a thumbnail does."""
+        outer = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        outer.add_css_class("target-strip")
+
+        label = Gtk.Label(label="Assign to:")
+        label.add_css_class("dim-label")
+        outer.append(label)
+
+        strip = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+        strip.add_css_class("linked")
+
+        first_button: Optional[Gtk.ToggleButton] = None
+        monitors = waltz_app.list_monitors()
+
+        for monitor in monitors:
+            button = Gtk.ToggleButton()
+            content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+            name_label = Gtk.Label(label=monitor.name)
+            subtitle = Gtk.Label(label="—")
+            subtitle.add_css_class("target-subtitle")
+            subtitle.set_ellipsize(Pango.EllipsizeMode.END)
+            subtitle.set_max_width_chars(14)
+            content.append(name_label)
+            content.append(subtitle)
+            button.set_child(content)
+
+            if first_button is None:
+                first_button = button
+                button.set_active(True)
+            else:
+                button.set_group(first_button)
+
+            self._apply_pointer_cursor(button)
+            strip.append(button)
+            self._target_buttons.append((button, ("monitor", monitor.name)))
+            self._monitor_subtitles[monitor.name] = subtitle
+
+        clone_button = Gtk.ToggleButton(label="Clone")
+        clone_button.set_tooltip_text("The same file, mirrored on every monitor")
+        if first_button is None:
+            first_button = clone_button
+            clone_button.set_active(True)
+        else:
+            clone_button.set_group(first_button)
+        self._apply_pointer_cursor(clone_button)
+        strip.append(clone_button)
+        self._target_buttons.append((clone_button, ("clone", None)))
+
+        span_button = Gtk.ToggleButton(label="Span")
+        span_button.set_tooltip_text("One file, stretched across every monitor combined")
+        if first_button is not None:
+            span_button.set_group(first_button)
+        self._apply_pointer_cursor(span_button)
+        strip.append(span_button)
+        self._target_buttons.append((span_button, ("span", None)))
+
+        outer.append(strip)
+        return outer
 
     # -- window lifecycle -------------------------------------------------
 
     def _on_close_request(self, _window) -> bool:
-        # Hide instead of quitting: mpvpaper and the tray icon should keep
+        # Hide instead of quitting: the backend and tray icon should keep
         # running even if the browser window is closed.
         self.set_visible(False)
         return True
@@ -143,9 +220,6 @@ class WaltzWindow(Adw.ApplicationWindow):
     def _on_stop_clicked(self, _button) -> None:
         self.waltz_app.stop_wallpaper()
 
-    def _on_mode_changed(self, dropdown, _pspec) -> None:
-        self._monitor_dropdown.set_visible(dropdown.get_selected() == 0)
-
     def _on_autostart_toggled(self, switch, _pspec) -> None:
         enabled = switch.get_active()
         self.waltz_app.set_autostart(enabled)
@@ -158,6 +232,7 @@ class WaltzWindow(Adw.ApplicationWindow):
             nxt = child.get_next_sibling()
             self._flowbox.remove(child)
             child = nxt
+        self._tiles.clear()
 
         files = list_media_files(folder)
         if not files:
@@ -166,6 +241,7 @@ class WaltzWindow(Adw.ApplicationWindow):
         self.set_status(f"{len(files)} file(s) in {folder}")
         for path in files:
             self._add_tile(path)
+        self.refresh_active_indicators()
 
     # -- thumbnail grid -----------------------------------------------------
 
@@ -179,21 +255,34 @@ class WaltzWindow(Adw.ApplicationWindow):
         frame = Gtk.Frame()
         frame.set_child(placeholder)
 
+        badge = Gtk.Label()
+        badge.add_css_class("wallpaper-badge")
+        badge.set_halign(Gtk.Align.END)
+        badge.set_valign(Gtk.Align.START)
+        badge.set_visible(False)
+
+        overlay = Gtk.Overlay()
+        overlay.set_child(frame)
+        overlay.add_overlay(badge)
+
         label = Gtk.Label(label=path.name)
         label.set_ellipsize(Pango.EllipsizeMode.END)
         label.set_max_width_chars(20)
         label.set_wrap(False)
 
         inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
-        inner.append(frame)
+        inner.append(overlay)
         inner.append(label)
 
         button = Gtk.Button()
         button.set_has_frame(False)
+        button.add_css_class("wallpaper-card")
         button.set_child(inner)
         button.connect("clicked", lambda _b, p=path: self._on_thumbnail_clicked(p))
+        self._apply_pointer_cursor(button)
 
         self._flowbox.append(button)
+        self._tiles[str(path.resolve())] = (button, badge)
         self._executor.submit(self._generate_thumbnail, path, frame)
 
     def _generate_thumbnail(self, path: Path, frame: Gtk.Frame) -> None:
@@ -212,21 +301,61 @@ class WaltzWindow(Adw.ApplicationWindow):
         return False  # one-shot idle callback
 
     def _on_thumbnail_clicked(self, path: Path) -> None:
-        mode = self._mode_dropdown.get_selected()
-        if mode == 1:
+        target = self._active_target()
+        kind, value = target
+        if kind == "clone":
             self.waltz_app.apply_clone(path)
-        elif mode == 2:
+        elif kind == "span":
             self.waltz_app.apply_span(path)
         else:
-            self.waltz_app.apply_wallpaper(path, output=self._selected_monitor_name())
+            self.waltz_app.apply_wallpaper(path, output=value)
 
-    def _selected_monitor_name(self) -> str | None:
-        if not self._monitor_names:
-            return None
-        idx = self._monitor_dropdown.get_selected()
-        if idx < 0 or idx >= len(self._monitor_names):
-            return None
-        return self._monitor_names[idx]
+    def _active_target(self) -> Target:
+        for button, target in self._target_buttons:
+            if button.get_active():
+                return target
+        return ("clone", None)  # shouldn't happen — the group always has one active
+
+    # -- currently-playing indicators ----------------------------------
+
+    def refresh_active_indicators(self) -> None:
+        """Re-check what's actually running (not just what's saved — a
+        stopped wallpaper shouldn't still show as playing) and update each
+        thumbnail's badge/border plus each monitor segment's subtitle."""
+        app = self.waltz_app
+        monitors_cfg = app.config.monitors
+        mode = app.config.display_mode
+
+        path_to_outputs: Dict[str, List[str]] = {}
+        running_paths: Dict[str, str] = {}  # output -> path, only if actually running
+        for output, entry in monitors_cfg.items():
+            path = entry.get("path")
+            if not path or not app.backend.is_running(output):
+                continue
+            key = str(Path(path).resolve())
+            path_to_outputs.setdefault(key, []).append(output)
+            running_paths[output] = Path(path).name
+
+        for output, subtitle in self._monitor_subtitles.items():
+            subtitle.set_label(running_paths.get(output, "—"))
+
+        for path_key, (button, badge) in self._tiles.items():
+            outputs = path_to_outputs.get(path_key)
+            if not outputs:
+                button.remove_css_class("wallpaper-card-active")
+                badge.set_visible(False)
+                continue
+            button.add_css_class("wallpaper-card-active")
+            if mode == "clone" and len(outputs) > 1:
+                text = "Clone"
+            elif mode == "span" and len(outputs) > 1:
+                text = "Span"
+            elif len(outputs) == 1:
+                text = outputs[0]
+            else:
+                text = ", ".join(outputs)
+            badge.set_label(text)
+            badge.set_visible(True)
 
     # -- status / errors ------------------------------------------------
 

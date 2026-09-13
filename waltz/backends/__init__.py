@@ -1,16 +1,16 @@
 """Wallpaper backend selection.
 
 Picks the right backend for the current desktop session instead of
-assuming wlr-layer-shell (mpvpaper) works everywhere — it doesn't: GNOME's
-Mutter and KDE's KWin don't implement that protocol at all, so both need
-a different approach, and neither has one Waltz can drive cleanly today
-(see the research notes below).
+assuming wlr-layer-shell works everywhere — it doesn't: GNOME's Mutter and
+KDE's KWin don't implement that protocol at all, so both need a different
+approach, and neither has one Waltz can drive cleanly today (see the
+research notes below).
 """
 
 from ..environment import Environment, SessionInfo, detect_session
 from .base import BackendUnavailable, WallpaperBackend
 from .unsupported import UnsupportedBackend
-from .wlr_layer_shell import WlrLayerShellBackend
+from .waltzer_white import WaltzerWhiteBackend
 from .x11 import X11Backend
 
 # GNOME Wayland: Mutter has no wlr-layer-shell support (an open GNOME
@@ -25,7 +25,7 @@ from .x11 import X11Backend
 # a real path forward, just a follow-up phase rather than done here.
 _GNOME_WAYLAND_MESSAGE = (
     "Video wallpapers aren't supported on GNOME Wayland yet — Mutter doesn't "
-    "implement the protocol mpvpaper needs (wlr-layer-shell), and there's no "
+    "implement the protocol Waltz needs (wlr-layer-shell), and there's no "
     "timeline for that changing. The GNOME Shell extension \"Hanabi\" "
     "(github.com/jeffshee/gnome-ext-hanabi) can genuinely do video wallpapers "
     "here, but Waltz doesn't drive it yet — install and enable it yourself for now."
@@ -62,7 +62,7 @@ def select_backend(session: SessionInfo = None) -> WallpaperBackend:
     env = session.environment
 
     if env == Environment.WLROOTS:
-        return _try(WlrLayerShellBackend)
+        return _try(WaltzerWhiteBackend)
 
     if env == Environment.X11_GENERIC:
         return _try(X11Backend)
@@ -98,7 +98,7 @@ __all__ = [
     "select_backend",
     "WallpaperBackend",
     "BackendUnavailable",
-    "WlrLayerShellBackend",
+    "WaltzerWhiteBackend",
     "X11Backend",
     "UnsupportedBackend",
     "Environment",

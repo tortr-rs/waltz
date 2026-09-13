@@ -9,6 +9,7 @@ memory with it. This module must never be imported by the GTK4 process.
 """
 
 import sys
+from pathlib import Path
 
 import gi
 
@@ -19,6 +20,9 @@ from gi.repository import Gtk, AyatanaAppIndicator3 as AppIndicator3, Gio, GLib
 BUS_NAME = "com.waltz.Waltz"
 OBJECT_PATH = "/com/waltz/Waltz"
 INTERFACE_NAME = "com.waltz.Waltz"
+
+ICON_NAME = "com.waltz.Waltz"
+ICON_THEME_DIR = Path(__file__).parent / "icons"
 
 
 def _call(method_name: str) -> None:
@@ -74,9 +78,13 @@ def _build_menu() -> Gtk.Menu:
 def main() -> None:
     indicator = AppIndicator3.Indicator.new(
         "waltz",
-        "video-x-generic-symbolic",
+        ICON_NAME,
         AppIndicator3.IndicatorCategory.APPLICATION_STATUS,
     )
+    # Same hicolor-layout directory the main GTK4 process registers with
+    # Gtk.IconTheme — AyatanaAppIndicator3 resolves its icon name through
+    # this search path rather than taking a raw file path directly.
+    indicator.set_icon_theme_path(str(ICON_THEME_DIR))
     indicator.set_status(AppIndicator3.IndicatorStatus.ACTIVE)
     indicator.set_title("Waltz")
     indicator.set_menu(_build_menu())

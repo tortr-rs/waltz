@@ -1,0 +1,87 @@
+/* Waltz palette: a violet-to-cyan gradient as the app's own accent,
+   independent of the system theme, used consistently across the header,
+   the active target segment, and the "currently playing" state. */
+
+@define-color waltz_violet #b34af0;
+@define-color waltz_cyan #4ad4e8;
+
+/* Primary action (Open Folder) */
+
+.waltz-primary-action {
+  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
+  color: white;
+  font-weight: 600;
+  border: none;
+  transition: filter 150ms ease, box-shadow 150ms ease;
+}
+
+.waltz-primary-action:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 14px alpha(@waltz_violet, 0.45);
+}
+
+/* Target strip (per-monitor / clone / span segmented control) */
+
+.target-strip {
+  padding: 8px 12px;
+  border-bottom: 1px solid alpha(currentColor, 0.08);
+  background: linear-gradient(90deg, alpha(@waltz_violet, 0.07), alpha(@waltz_cyan, 0.07));
+}
+
+.target-strip button {
+  padding-top: 6px;
+  padding-bottom: 6px;
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.target-strip button:checked {
+  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
+  color: white;
+}
+
+.target-subtitle {
+  font-size: 0.78em;
+  opacity: 0.7;
+}
+
+.target-strip button:checked .target-subtitle {
+  opacity: 0.85;
+}
+
+/* Thumbnail cards */
+
+.wallpaper-card {
+  border-radius: 14px;
+  border: 2px solid transparent;
+  padding: 4px;
+  transition: border-color 200ms ease, background-color 200ms ease,
+              box-shadow 200ms ease;
+}
+
+.wallpaper-card:hover {
+  border-color: alpha(@waltz_violet, 0.55);
+  background-color: alpha(@waltz_violet, 0.08);
+  box-shadow: 0 10px 26px -8px alpha(@waltz_violet, 0.55);
+}
+
+@keyframes waltz-pulse {
+  0%   { box-shadow: 0 0 0 0 alpha(@waltz_violet, 0.5); }
+  70%  { box-shadow: 0 0 0 9px alpha(@waltz_violet, 0); }
+  100% { box-shadow: 0 0 0 0 alpha(@waltz_violet, 0); }
+}
+
+.wallpaper-card.wallpaper-card-active {
+  border-color: @waltz_cyan;
+  background-color: alpha(@waltz_cyan, 0.10);
+  animation: waltz-pulse 2.4s ease-out infinite;
+}
+
+.wallpaper-badge {
+  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
+  color: white;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.78em;
+  font-weight: 600;
+  margin: 6px;
+}
