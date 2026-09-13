@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Waltz</title>
-<meta name="description" content="A GUI wallpaper engine for Linux Wayland compositors, built on mpvpaper.">
+<meta name="description" content="A GUI wallpaper engine for Linux, powered by waltzer-white — its own minimal Rust renderer.">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Work+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
   :root{
@@ -318,7 +318,7 @@
 
   <div class="nav">
     <span class="wordmark">W<em>a</em>ltz</span>
-    <span class="meta">v0.1 · core loop</span>
+    <span class="meta">v0.2 · waltzer-white</span>
   </div>
 
   <section class="hero" style="border-top:none;">
@@ -335,7 +335,7 @@
       <div class="frame">
         <img src="screenshot.png" alt="Waltz's thumbnail grid, showing a folder of video and gif wallpapers with a Singular/Clone/Span mode switcher in the header" />
       </div>
-      <p class="cap">the actual app, mid-clone, on a two-monitor niri session</p>
+      <p class="cap">the actual app, mid-clone, running waltzer-white on a two-monitor niri session</p>
     </div>
   </section>
 
@@ -359,7 +359,7 @@
       <div class="step">
         <span class="num">03</span>
         <h3>Click to set it live</h3>
-        <p>Waltz shells out to <code class="mono">mpvpaper</code> immediately. Whatever was already running on that output gets killed first — <code class="mono">SIGKILL</code>, not a polite ask.</p>
+        <p>Waltz's backend takes over immediately. Whatever was already running on that output gets killed first — <code class="mono">SIGKILL</code>, not a polite ask.</p>
       </div>
     </div>
   </section>
@@ -374,7 +374,7 @@
 
       <div class="mode-card">
         <figure class="arch-figure">
-          <svg viewBox="0 0 220 110" role="img" aria-label="Two monitors, each fed by its own separate file and its own mpvpaper process">
+          <svg viewBox="0 0 220 110" role="img" aria-label="Two monitors, each fed by its own separate file and its own waltzer-white process">
             <rect x="14" y="14" width="80" height="52" rx="3" fill="none" stroke="currentColor" opacity="0.5"/>
             <rect x="126" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--teal)" opacity="0.9"/>
             <line x1="54" y1="66" x2="54" y2="76" stroke="currentColor" opacity="0.5"/>
@@ -386,43 +386,46 @@
           </svg>
         </figure>
         <h3>Singular</h3>
-        <p class="tagline">one mpvpaper process per output</p>
+        <p class="tagline">one waltzer-white process per output</p>
         <p>Every monitor gets its own independent file and its own process. Setting one never touches another.</p>
       </div>
 
       <div class="mode-card">
         <figure class="arch-figure">
-          <svg viewBox="0 0 220 110" role="img" aria-label="One file feeding a single mpvpaper ALL process, which drives both monitors identically">
-            <rect x="86" y="82" width="48" height="14" rx="2" fill="none" stroke="var(--gold)"/>
-            <text x="110" y="92" text-anchor="middle" font-size="8" fill="var(--gold)" font-family="IBM Plex Mono, monospace">c.mp4</text>
-            <line x1="110" y1="82" x2="54" y2="66" stroke="var(--gold)" opacity="0.8"/>
-            <line x1="110" y1="82" x2="166" y2="66" stroke="var(--gold)" opacity="0.8"/>
-            <rect x="14" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--gold)"/>
-            <rect x="126" y="14" width="80" height="52" rx="3" fill="none" stroke="var(--gold)"/>
+          <svg viewBox="0 0 220 110" role="img" aria-label="One file, one shared decode inside a single waltzer-white process, rendered to both monitors' own surfaces">
+            <rect x="70" y="6" width="80" height="16" rx="2" fill="none" stroke="var(--gold)"/>
+            <text x="110" y="17.5" text-anchor="middle" font-size="8" fill="var(--gold)" font-family="IBM Plex Mono, monospace">c.mp4 (1 decode)</text>
+            <rect x="60" y="34" width="100" height="24" rx="3" fill="none" stroke="var(--gold)"/>
+            <text x="110" y="49" text-anchor="middle" font-size="8" fill="var(--gold)" font-family="IBM Plex Mono, monospace">waltzer-white ×1</text>
+            <line x1="110" y1="22" x2="110" y2="34" stroke="var(--gold)" opacity="0.8"/>
+            <line x1="90" y1="58" x2="54" y2="76" stroke="var(--gold)" opacity="0.8"/>
+            <line x1="130" y1="58" x2="166" y2="76" stroke="var(--gold)" opacity="0.8"/>
+            <rect x="14" y="76" width="80" height="28" rx="3" fill="none" stroke="var(--gold)"/>
+            <rect x="126" y="76" width="80" height="28" rx="3" fill="none" stroke="var(--gold)"/>
           </svg>
         </figure>
         <h3>Clone</h3>
-        <p class="tagline">mpvpaper ALL /path — one process</p>
-        <p>The same file everywhere, via mpvpaper's own <code class="mono">ALL</code> output — a single process, not N of them.</p>
+        <p class="tagline">one process, one decode, every output</p>
+        <p>waltzer-white shares a single decode across every monitor's own surface — Clone costs about the same memory for two monitors as for one, not double.</p>
       </div>
 
       <div class="mode-card">
         <figure class="arch-figure">
-          <svg viewBox="0 0 220 110" role="img" aria-label="One wide canvas scaled to the combined bounding box of both monitors, then cropped in half, one crop per output">
-            <rect x="14" y="14" width="192" height="40" rx="3" fill="none" stroke="var(--teal)" stroke-dasharray="3 3" opacity="0.7"/>
-            <text x="110" y="9" text-anchor="middle" font-size="7.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">scale=3840:1080</text>
-            <line x1="14" y1="66" x2="14" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
-            <line x1="206" y1="66" x2="206" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
-            <line x1="110" y1="66" x2="110" y2="54" stroke="var(--teal)" stroke-dasharray="2 2" opacity="0.6"/>
-            <rect x="14" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.6"/>
-            <rect x="118" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.6"/>
-            <text x="58" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">crop 1/2</text>
-            <text x="162" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">crop 2/2</text>
+          <svg viewBox="0 0 220 110" role="img" aria-label="One wide canvas scaled to the combined bounding box of both monitors, then cropped in half, one crop per output — the mechanism, currently paused pending option passthrough">
+            <rect x="14" y="14" width="192" height="40" rx="3" fill="none" stroke="currentColor" stroke-dasharray="3 3" opacity="0.4"/>
+            <text x="110" y="9" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.5" font-family="IBM Plex Mono, monospace">scale=3840:1080</text>
+            <line x1="14" y1="66" x2="14" y2="54" stroke="currentColor" stroke-dasharray="2 2" opacity="0.35"/>
+            <line x1="206" y1="66" x2="206" y2="54" stroke="currentColor" stroke-dasharray="2 2" opacity="0.35"/>
+            <line x1="110" y1="66" x2="110" y2="54" stroke="currentColor" stroke-dasharray="2 2" opacity="0.35"/>
+            <rect x="14" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.35"/>
+            <rect x="118" y="66" width="88" height="30" rx="2" fill="none" stroke="currentColor" opacity="0.35"/>
+            <text x="58" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.45" font-family="IBM Plex Mono, monospace">crop 1/2</text>
+            <text x="162" y="85" text-anchor="middle" font-size="7.5" fill="currentColor" opacity="0.45" font-family="IBM Plex Mono, monospace">crop 2/2</text>
           </svg>
         </figure>
-        <h3>Span</h3>
+        <h3>Span <span style="font-family:var(--font-mono); font-size:0.6em; color:var(--gold); font-style:normal; vertical-align:middle;">paused</span></h3>
         <p class="tagline">scale + crop + setdar, per output</p>
-        <p>No mpvpaper feature does this. Waltz scales the source to the bounding box of your real monitor geometry, then hands each output its own slice.</p>
+        <p>The mechanism still exists — it needs mpv option passthrough, which waltzer-white deliberately doesn't have. Coming back once it does.</p>
       </div>
 
     </div>
@@ -431,47 +434,57 @@
   <section>
     <div class="section-head">
       <p class="eyebrow">philosophy</p>
-      <h2>Built on mpvpaper, not reinvented</h2>
-      <p>Video-as-wallpaper on wlroots compositors is already a solved problem. Waltz doesn't touch a single pixel.</p>
+      <h2>A backend for what's actually running</h2>
+      <p>Wayland's wlr-layer-shell protocol — the thing that lets a client draw a background layer under every window — isn't universal. GNOME's Mutter and KDE's KWin don't implement it at all. Waltz detects the session and picks a real backend instead of assuming one approach works everywhere, and tells you plainly when there isn't one yet.</p>
     </div>
 
     <figure class="arch-figure">
-      <svg viewBox="0 0 720 120" role="img" aria-label="Waltz launches and tracks mpvpaper as a subprocess; mpvpaper renders through mpv into a wlr-layer-shell surface, which the compositor composites under every window">
+      <svg viewBox="0 0 720 220" role="img" aria-label="Waltz detects the session and branches to one of three outcomes: waltzer-white on wlroots compositors, xwinwrap and mpv on generic X11, or a clear unsupported message on GNOME and KDE">
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
           </marker>
         </defs>
 
-        <rect x="10" y="34" width="130" height="52" rx="6" fill="none" stroke="var(--gold)"/>
-        <text x="75" y="55" text-anchor="middle" font-size="13" fill="var(--gold)" font-family="IBM Plex Mono, monospace">Waltz</text>
-        <text x="75" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">GTK4 GUI</text>
+        <rect x="10" y="85" width="110" height="50" rx="6" fill="none" stroke="currentColor"/>
+        <text x="65" y="106" text-anchor="middle" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">Waltz</text>
+        <text x="65" y="121" text-anchor="middle" font-size="8.5" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">detects session</text>
 
-        <line x1="140" y1="60" x2="222" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
-        <text x="181" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">launches, tracks pid</text>
+        <line x1="120" y1="110" x2="150" y2="30" stroke="var(--gold)" opacity="0.85"/>
+        <line x1="120" y1="110" x2="150" y2="110" stroke="var(--teal)" opacity="0.85"/>
+        <line x1="120" y1="110" x2="150" y2="190" stroke="currentColor" opacity="0.5"/>
 
-        <rect x="225" y="34" width="130" height="52" rx="6" fill="none" stroke="currentColor"/>
-        <text x="290" y="55" text-anchor="middle" font-size="13" fill="currentColor" font-family="IBM Plex Mono, monospace">mpvpaper</text>
-        <text x="290" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">wraps mpv</text>
+        <!-- wlroots lane -->
+        <text x="152" y="14" font-size="8.5" fill="var(--gold)" font-family="IBM Plex Mono, monospace">niri / Hyprland / Sway</text>
+        <rect x="152" y="20" width="120" height="30" rx="5" fill="none" stroke="var(--gold)"/>
+        <text x="212" y="39" text-anchor="middle" font-size="10.5" fill="var(--gold)" font-family="IBM Plex Mono, monospace">waltzer-white</text>
+        <line x1="272" y1="35" x2="330" y2="35" stroke="var(--gold)" opacity="0.85" marker-end="url(#arrow)"/>
+        <rect x="333" y="20" width="110" height="30" rx="5" fill="none" stroke="var(--gold)" opacity="0.85"/>
+        <text x="388" y="39" text-anchor="middle" font-size="9.5" fill="var(--gold)" font-family="IBM Plex Mono, monospace">layer-shell</text>
+        <line x1="443" y1="35" x2="490" y2="35" stroke="currentColor" opacity="0.6" marker-end="url(#arrow)"/>
+        <text x="494" y="39" font-size="9.5" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">compositor</text>
 
-        <line x1="355" y1="60" x2="437" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
-        <text x="396" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">renders into</text>
+        <!-- X11 lane -->
+        <text x="152" y="94" font-size="8.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">i3 / bspwm / Openbox</text>
+        <rect x="152" y="100" width="120" height="30" rx="5" fill="none" stroke="var(--teal)"/>
+        <text x="212" y="119" text-anchor="middle" font-size="9.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">xwinwrap+mpv</text>
+        <line x1="272" y1="115" x2="330" y2="115" stroke="var(--teal)" opacity="0.85" marker-end="url(#arrow)"/>
+        <rect x="333" y="100" width="110" height="30" rx="5" fill="none" stroke="var(--teal)" opacity="0.85"/>
+        <text x="388" y="119" text-anchor="middle" font-size="9.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">root window</text>
+        <line x1="443" y1="115" x2="490" y2="115" stroke="currentColor" opacity="0.6" marker-end="url(#arrow)"/>
+        <text x="494" y="119" font-size="9.5" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">X server</text>
 
-        <rect x="440" y="34" width="140" height="52" rx="6" fill="none" stroke="var(--teal)"/>
-        <text x="510" y="55" text-anchor="middle" font-size="12.5" fill="var(--teal)" font-family="IBM Plex Mono, monospace">layer-shell</text>
-        <text x="510" y="70" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">background layer</text>
-
-        <line x1="580" y1="60" x2="662" y2="60" stroke="currentColor" marker-end="url(#arrow)"/>
-        <text x="621" y="50" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.75" font-family="IBM Plex Mono, monospace">composited by</text>
-
-        <text x="665" y="55" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">niri</text>
-        <text x="665" y="70" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">Hyprland</text>
-        <text x="665" y="85" text-anchor="start" font-size="12.5" fill="currentColor" font-family="IBM Plex Mono, monospace">Sway</text>
+        <!-- GNOME/KDE lane -->
+        <text x="152" y="174" font-size="8.5" fill="currentColor" opacity="0.6" font-family="IBM Plex Mono, monospace">GNOME / KDE</text>
+        <rect x="152" y="180" width="120" height="30" rx="5" fill="none" stroke="currentColor" stroke-dasharray="3 3" opacity="0.5"/>
+        <text x="212" y="199" text-anchor="middle" font-size="9" fill="currentColor" opacity="0.7" font-family="IBM Plex Mono, monospace">no backend yet</text>
+        <line x1="272" y1="195" x2="330" y2="195" stroke="currentColor" opacity="0.4" marker-end="url(#arrow)"/>
+        <text x="335" y="199" font-size="9" fill="currentColor" opacity="0.6" font-family="Work Sans, sans-serif">honest error message</text>
       </svg>
-      <figcaption>Waltz's whole job stops at the second box: launch mpvpaper, remember its PID, and kill it cleanly when the wallpaper changes.</figcaption>
+      <figcaption>Three real outcomes, not one happy path — the third one is a clear message ("try Hanabi on GNOME," "install Smart Video Wallpaper Reborn on KDE"), not a silent failure or a fake-applied wallpaper.</figcaption>
     </figure>
 
-    <p class="arch-quote">Killing it turned out to be the interesting part: mpvpaper registers a <code class="mono">SIGTERM</code> handler that doesn't actually exit on it — confirmed by leaving an uncontested instance running 10 seconds past the signal. Waltz sends <code class="mono">SIGKILL</code> instead. There's no player state worth preserving in a wallpaper.</p>
+    <p class="arch-quote">The interesting part turned out to be Clone mode: rather than one renderer process per monitor, waltzer-white shares a single libmpv decode across every output it's given, switching <code class="mono">eglMakeCurrent</code> between each one's own surface per frame. Two monitors cost about the same memory as one. On hardware where <code class="mono">hwdec</code> falls back to software decode, forcing single-threaded decode (<code class="mono">vd-lavc-threads=1</code>) cut memory a further ~28% — multi-threaded software decode allocates per-thread frame buffers that a background loop never needed.</p>
   </section>
 
   <section>
@@ -484,8 +497,10 @@
         <h3>Working today</h3>
         <ul class="status-list">
           <li><span class="mark">✓</span><span><b>Thumbnail browser</b> — GTK4 + libadwaita, ffmpeg frame extraction, disk-cached.</span></li>
-          <li><span class="mark">✓</span><span><b>Monitor detection</b> — auto-picks whichever compositor IPC answers: <code class="mono">niri msg</code>, <code class="mono">hyprctl</code>, or <code class="mono">swaymsg</code>.</span></li>
-          <li><span class="mark">✓</span><span><b>Singular, Clone, and Span</b> modes, each a distinct mpvpaper invocation strategy.</span></li>
+          <li><span class="mark">✓</span><span><b>Session-aware backends</b> — waltzer-white on wlroots compositors, xwinwrap+mpv on generic X11, a clear message on GNOME/KDE.</span></li>
+          <li><span class="mark">✓</span><span><b>Per-monitor target strip</b> — one toggle per output, plus Clone, with a live "currently playing" badge per thumbnail.</span></li>
+          <li><span class="mark">✓</span><span><b>Startup persistence</b> — relaunches your saved wallpaper automatically, singular or cloned, when Waltz (re)starts.</span></li>
+          <li><span class="mark">✓</span><span><b>Autostart</b> — opt-in login launch via a standard XDG autostart entry. Never touches your compositor config.</span></li>
           <li><span class="mark">✓</span><span><b>Tray icon</b> — open, stop, quit — running as its own process, since AyatanaAppIndicator3's GTK3 menu can't share a process with the GTK4 window.</span></li>
           <li><span class="mark">✓</span><span><b>Clean handoff</b> — any process already bound to an output, Waltz's own or a stray one, is found via <code class="mono">/proc</code> and killed before a new one claims it.</span></li>
         </ul>
@@ -493,8 +508,9 @@
       <div class="status-col next">
         <h3>Not yet</h3>
         <ul class="status-list">
-          <li><span class="mark">→</span><span><b>Startup persistence</b> — relaunching the saved per-monitor config automatically when Waltz (re)starts.</span></li>
-          <li><span class="mark">→</span><span><b>Autostart registration</b> — writing its own launch entry for your session, replacing a hand-added <code class="mono">exec-once</code> line. Never touches your compositor config without asking first.</span></li>
+          <li><span class="mark">→</span><span><b>Span mode on waltzer-white</b> — needs option passthrough for the crop filters; deliberately not in v1's scope.</span></li>
+          <li><span class="mark">→</span><span><b>GNOME</b> — researched: the <a href="https://github.com/jeffshee/gnome-ext-hanabi" target="_blank" rel="noopener">Hanabi</a> Shell extension genuinely does this, scriptable via <code class="mono">gsettings</code>, but needs the user to already have it installed.</span></li>
+          <li><span class="mark">→</span><span><b>KDE Plasma</b> — researched: <a href="https://github.com/luisbocanegra/plasma-smart-video-wallpaper-reborn" target="_blank" rel="noopener">Smart Video Wallpaper Reborn</a> is the closest thing, but changing its video needs a disruptive <code class="mono">plasmashell</code> restart — not worth driving directly yet.</span></li>
         </ul>
       </div>
     </div>
@@ -504,21 +520,23 @@
     <div class="section-head">
       <p class="eyebrow">try it</p>
       <h2>Get Waltz</h2>
+      <p><a href="https://github.com/tortr-rs/waltz/releases/latest" target="_blank" rel="noopener">Latest release on GitHub →</a></p>
     </div>
     <div class="get">
       <div class="reqs">
-        <p>Not packaged anywhere yet — it runs straight out of a checkout. You'll need:</p>
+        <p><code>install.sh</code> installs these via your package manager automatically — listed here so you know what's going on your system:</p>
         <ul>
-          <li><code>mpvpaper</code> <span style="color:var(--ink-faint)">— the rendering backend</span></li>
           <li><code>ffmpeg</code> <span style="color:var(--ink-faint)">— thumbnail extraction</span></li>
           <li><code>python-gobject</code>, <code>gtk4</code>, <code>libadwaita</code> <span style="color:var(--ink-faint)">— the GUI</span></li>
           <li><code>libayatana-appindicator</code> <span style="color:var(--ink-faint)">— the tray icon</span></li>
+          <li><code>rust</code> <span style="color:var(--ink-faint)">— builds waltzer-white; not needed after that</span></li>
         </ul>
       </div>
       <div class="terminal">
         <div class="bar"><span></span><span></span><span></span></div>
-        <pre><span class="c"># from inside the checkout</span>
-<span class="p">$</span> <span class="o">./bin/waltz</span>
+        <pre><span class="c"># download, extract, install</span>
+<span class="p">$</span> <span class="o">tar xzf waltz-*.tar.gz && cd waltz-*/</span>
+<span class="p">$</span> <span class="o">./scripts/install.sh</span>
 
 <span class="c"># config and thumbnail cache live under</span>
 <span class="o">~/.config/waltz/config.json</span>
@@ -529,7 +547,7 @@
 
   <footer>
     <span class="wordmark">Waltz <span class="by">(frontend by Torter)</span></span>
-    <span class="credit">rendering by <a href="https://github.com/GhostNaN/mpvpaper" target="_blank" rel="noopener">mpvpaper</a>, by GhostNaN</span>
+    <span class="credit">decoding via <a href="https://mpv.io" target="_blank" rel="noopener">libmpv</a> · proved out early on <a href="https://github.com/GhostNaN/mpvpaper" target="_blank" rel="noopener">mpvpaper</a>, by GhostNaN</span>
   </footer>
 
 </div>

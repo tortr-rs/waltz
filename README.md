@@ -2,8 +2,10 @@
 
 A GUI wallpaper engine for Linux. Point it at a folder of your own video/gif
 files, browse thumbnails, click one to set it as your wallpaper — per
-monitor, cloned to every monitor, or (on the mpvpaper-era backend) spanned
-across all of them as one canvas.
+monitor, or cloned to every monitor at once.
+
+**[Download the latest release](https://github.com/tortr-rs/waltz/releases/latest)**
+— extract the tarball and run `./scripts/install.sh`.
 
 ## Status
 
@@ -23,12 +25,14 @@ assume one approach works everywhere:
 
 - **wlroots compositors (niri, Hyprland, Sway, ...)** — **waltzer-white**
   (`waltzer-white/`), Waltz's own minimal Rust renderer: libmpv's render API
-  for decode, raw `wayland-client` + `wayland-protocols-wlr` for a
-  wlr-layer-shell-unstable-v1 background surface, EGL for the GL context.
-  Deliberately tiny (~380 lines) and deliberately has **no option
-  passthrough** — two CLI args only (output name, file path), hardware
-  decode/loop/mute hardcoded. That tradeoff means it can't yet do Span
-  mode's per-monitor crop filters; Singular and Clone work fully.
+  for decode, raw `wayland-client` + `wayland-protocols-wlr` for
+  wlr-layer-shell-unstable-v1 background surfaces, EGL for the GL context.
+  Deliberately has **no option passthrough** — CLI is just
+  `waltzer-white <path> <output1> [output2 ...]`, hardware decode/loop/mute
+  hardcoded. A single process shares one decode across every output it's
+  given, so Clone mode costs about the same memory for N monitors as for
+  one. That no-passthrough tradeoff means it can't yet do Span mode's
+  per-monitor crop filters; Singular and Clone work fully.
 - **Generic X11 (i3, bspwm, Openbox, ...)** — `xwinwrap` + `mpv`, embedding
   into the root window, `xrandr` for monitor geometry. Implemented from
   xwinwrap's documented usage; not verified against a live X server (this
@@ -55,7 +59,10 @@ assume one approach works everywhere:
   a third-party tool, at the cost of writing (and re-verifying) the
   Wayland/EGL/mpv integration ourselves. `mpvpaper` was the original
   backend and proved the approach; waltzer-white replaces it now that it's
-  built and tested.
+  built and tested. It also tunes software-decode fallback
+  (`vd-lavc-threads=1`, a no-op when hardware decode actually works) —
+  measured ~28% lower memory versus default multi-threaded software
+  decode on hardware without a working `hwdec` path.
 - **niri / Hyprland / Sway** monitor detection via each compositor's own
   IPC (`niri msg -j outputs`, `hyprctl -j monitors`, `swaymsg -t
   get_outputs`), auto-detected by whichever responds.
@@ -83,6 +90,15 @@ System packages (Arch package names shown; adjust for your distro):
 wlroots compositors.
 
 ## Running
+
+From a [release tarball](https://github.com/tortr-rs/waltz/releases/latest):
+
+```sh
+tar xzf waltz-*.tar.gz && cd waltz-*/
+./scripts/install.sh
+```
+
+From this checkout, without installing anywhere:
 
 ```sh
 cd waltzer-white && cargo build --release && cd ..
