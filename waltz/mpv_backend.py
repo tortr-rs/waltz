@@ -31,6 +31,13 @@ def _all_mpvpaper_processes() -> List[Tuple[int, str, str]]:
     mpvpaper's usage is `mpvpaper [options] <output> <path>` — output and
     path are always the final two positional args, regardless of which
     options preceded them, so args[-2]/args[-1] is reliable.
+
+    This runs on every play/stop/is_running call, so it's worth keeping
+    cheap: a desktop session can easily have a few hundred processes, and
+    reading /proc/<pid>/cmdline for every one of them is real I/O. /proc/
+    <pid>/comm is a much shorter read (just the executable name, kernel-
+    truncated to 15 chars — "mpvpaper" fits well within that), so it acts
+    as a fast filter before paying for the full cmdline read.
     """
     results = []
     try:
@@ -38,6 +45,12 @@ def _all_mpvpaper_processes() -> List[Tuple[int, str, str]]:
     except OSError:
         return results
     for p in candidates:
+        try:
+            comm = (p / "comm").read_text().strip()
+        except OSError:
+            continue
+        if comm != "mpvpaper":
+            continue
         try:
             raw = (p / "cmdline").read_bytes()
         except OSError:

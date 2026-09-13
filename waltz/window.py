@@ -60,6 +60,20 @@ class WaltzWindow(Adw.ApplicationWindow):
         stop_button.connect("clicked", self._on_stop_clicked)
         header.pack_end(stop_button)
 
+        autostart_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        autostart_box.set_valign(Gtk.Align.CENTER)
+        autostart_label = Gtk.Label(label="Start at login")
+        self._autostart_switch = Gtk.Switch()
+        self._autostart_switch.set_active(waltz_app.is_autostart_enabled())
+        self._autostart_switch.set_tooltip_text(
+            "Launch Waltz automatically at login via a standard XDG autostart\n"
+            "entry (~/.config/autostart) — never touches your compositor config."
+        )
+        self._autostart_switch.connect("notify::active", self._on_autostart_toggled)
+        autostart_box.append(autostart_label)
+        autostart_box.append(self._autostart_switch)
+        header.pack_end(autostart_box)
+
         toolbar_view.add_top_bar(header)
 
         self._toast_overlay = Adw.ToastOverlay()
@@ -131,6 +145,11 @@ class WaltzWindow(Adw.ApplicationWindow):
 
     def _on_mode_changed(self, dropdown, _pspec) -> None:
         self._monitor_dropdown.set_visible(dropdown.get_selected() == 0)
+
+    def _on_autostart_toggled(self, switch, _pspec) -> None:
+        enabled = switch.get_active()
+        self.waltz_app.set_autostart(enabled)
+        self.set_status("Waltz will now launch at login" if enabled else "Autostart disabled")
 
     def _load_folder(self, folder: Path) -> None:
         self._current_folder = folder

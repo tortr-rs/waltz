@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Waltz
+Comment=Video wallpaper engine for Wayland, backed by mpvpaper
+Exec=waltz
+Icon=video-x-generic
+Categories=Utility;Graphics;
+Terminal=false
