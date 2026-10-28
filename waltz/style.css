@@ -1,42 +1,87 @@
-/* Waltz palette: a violet-to-cyan gradient as the app's own accent,
-   independent of the system theme, used consistently across the header,
-   the active target segment, and the "currently playing" state. */
+/* Waltz in frutiger aero: sky and water, glossy gel buttons with the
+   light caught in their top half, glass on the header. Scoped to
+   .waltz-window so the system theme still runs everything else. */
 
-@define-color waltz_violet #b34af0;
-@define-color waltz_cyan #4ad4e8;
+@define-color waltz_sky #1f8fe0;
+@define-color waltz_aqua #3cc8e8;
+@define-color waltz_leaf #4cb83a;
+@define-color waltz_deep #0b4f8c;
+@define-color waltz_ink #0d2a44;
 
-/* Primary action (Open Folder) */
-
-.waltz-primary-action {
-  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
-  color: white;
-  font-weight: 600;
-  border: none;
-  transition: filter 150ms ease, box-shadow 150ms ease;
+.waltz-window {
+  background: linear-gradient(180deg, #eaf6ff 0%, #d4ecfb 55%, #bfe3f6 100%);
+  color: @waltz_ink;
 }
 
-.waltz-primary-action:hover {
-  filter: brightness(1.1);
-  box-shadow: 0 4px 14px alpha(@waltz_violet, 0.45);
+/* the header: a sheet of glass, brighter at the top */
+.waltz-window headerbar {
+  background: linear-gradient(180deg, alpha(white, 0.95) 0%, alpha(white, 0.55) 49%,
+                              alpha(#a8d8f6, 0.55) 50%, alpha(#7cc3f0, 0.7) 100%);
+  border-bottom: 1px solid alpha(@waltz_deep, 0.35);
+  box-shadow: inset 0 1px alpha(white, 0.9);
+  color: @waltz_ink;
+}
+
+/* gel buttons: two gradients split at the middle, the top one the shine */
+.waltz-window headerbar button {
+  border-radius: 999px;
+  padding: 4px 16px;
+  border: 1px solid alpha(@waltz_deep, 0.45);
+  background: linear-gradient(180deg, #ffffff 0%, #eef7fd 49%, #d6ebf9 50%, #e6f4fd 100%);
+  box-shadow: inset 0 1px alpha(white, 0.9), 0 1px 3px alpha(@waltz_deep, 0.25);
+  color: @waltz_ink;
+  font-weight: 600;
+}
+
+.waltz-window headerbar button:hover {
+  background: linear-gradient(180deg, #ffffff 0%, #f4fbff 49%, #c9e8fb 50%, #def2fe 100%);
+  box-shadow: inset 0 1px alpha(white, 0.9), 0 0 10px alpha(@waltz_aqua, 0.6);
+}
+
+.waltz-window headerbar button:disabled {
+  opacity: 0.5;
+}
+
+.waltz-primary-action,
+.waltz-window headerbar button.waltz-primary-action {
+  color: white;
+  border-color: #0e5ea8;
+  background: linear-gradient(180deg, #8fd6ff 0%, #4fb2f0 49%, #1f86d8 50%, #3aa6ee 100%);
+  text-shadow: 0 1px 1px alpha(black, 0.35);
+}
+
+.waltz-window headerbar button.waltz-primary-action:hover {
+  background: linear-gradient(180deg, #a6e0ff 0%, #66bff5 49%, #2b93e2 50%, #4fb4f5 100%);
+}
+
+.waltz-window headerbar button.destructive-action {
+  color: white;
+  border-color: #a5170d;
+  background: linear-gradient(180deg, #ffb3a6 0%, #f2705c 49%, #d63322 50%, #ea5440 100%);
+  text-shadow: 0 1px 1px alpha(black, 0.35);
 }
 
 /* Target strip (per-monitor / clone / span segmented control) */
 
 .target-strip {
-  padding: 8px 12px;
-  border-bottom: 1px solid alpha(currentColor, 0.08);
-  background: linear-gradient(90deg, alpha(@waltz_violet, 0.07), alpha(@waltz_cyan, 0.07));
+  padding: 10px 14px;
+  border-bottom: 1px solid alpha(@waltz_deep, 0.15);
+  background: linear-gradient(180deg, alpha(white, 0.6), alpha(white, 0.15));
 }
 
 .target-strip button {
-  padding-top: 6px;
-  padding-bottom: 6px;
+  padding: 6px 14px;
+  border: 1px solid alpha(@waltz_deep, 0.35);
+  background: linear-gradient(180deg, #ffffff 0%, #f1f8fd 49%, #dcedf9 50%, #eaf5fd 100%);
+  color: @waltz_ink;
   transition: background 150ms ease, color 150ms ease;
 }
 
 .target-strip button:checked {
-  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
   color: white;
+  border-color: #0e5ea8;
+  background: linear-gradient(180deg, #8fe6ff 0%, #4cc3ef 49%, #1593d4 50%, #36b4ea 100%);
+  text-shadow: 0 1px 1px alpha(black, 0.3);
 }
 
 .target-subtitle {
@@ -45,43 +90,45 @@
 }
 
 .target-strip button:checked .target-subtitle {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
-/* Thumbnail cards */
+/* Thumbnail cards: white photo frames that glow aqua */
 
 .wallpaper-card {
   border-radius: 14px;
-  border: 2px solid transparent;
-  padding: 4px;
-  transition: border-color 200ms ease, background-color 200ms ease,
-              box-shadow 200ms ease;
+  border: 1px solid alpha(@waltz_deep, 0.18);
+  padding: 6px;
+  background: linear-gradient(180deg, alpha(white, 0.95), alpha(#eef7fd, 0.9));
+  box-shadow: 0 2px 6px alpha(@waltz_deep, 0.15);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
 }
 
 .wallpaper-card:hover {
-  border-color: alpha(@waltz_violet, 0.55);
-  background-color: alpha(@waltz_violet, 0.08);
-  box-shadow: 0 10px 26px -8px alpha(@waltz_violet, 0.55);
+  border-color: alpha(@waltz_aqua, 0.9);
+  box-shadow: 0 0 0 1px alpha(@waltz_aqua, 0.5), 0 8px 22px -6px alpha(@waltz_sky, 0.6);
 }
 
-@keyframes waltz-pulse {
-  0%   { box-shadow: 0 0 0 0 alpha(@waltz_violet, 0.5); }
-  70%  { box-shadow: 0 0 0 9px alpha(@waltz_violet, 0); }
-  100% { box-shadow: 0 0 0 0 alpha(@waltz_violet, 0); }
+@keyframes waltz-glow {
+  0%   { box-shadow: 0 0 0 0 alpha(@waltz_aqua, 0.65); }
+  70%  { box-shadow: 0 0 0 10px alpha(@waltz_aqua, 0); }
+  100% { box-shadow: 0 0 0 0 alpha(@waltz_aqua, 0); }
 }
 
 .wallpaper-card.wallpaper-card-active {
-  border-color: @waltz_cyan;
-  background-color: alpha(@waltz_cyan, 0.10);
-  animation: waltz-pulse 2.4s ease-out infinite;
+  border-color: @waltz_aqua;
+  background: linear-gradient(180deg, #ffffff, #dff5fd);
+  animation: waltz-glow 2.4s ease-out infinite;
 }
 
 .wallpaper-badge {
-  background: linear-gradient(135deg, @waltz_violet, @waltz_cyan);
+  background: linear-gradient(180deg, #b6f59a 0%, #6fd04f 49%, #3f9e1e 50%, #58b83a 100%);
   color: white;
+  border: 1px solid alpha(#2c7a12, 0.8);
   border-radius: 999px;
   padding: 2px 10px;
   font-size: 0.78em;
-  font-weight: 600;
+  font-weight: 700;
+  text-shadow: 0 1px 1px alpha(black, 0.35);
   margin: 6px;
 }

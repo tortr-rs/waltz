@@ -1,0 +1,12 @@
+{
+    "KPackageStructure": "Plasma/Wallpaper",
+    "KPlugin": {
+        "Id": "com.waltz.wallpaper",
+        "Name": "Waltz",
+        "Description": "Video wallpaper, set from Waltz",
+        "Icon": "com.waltz.Waltz",
+        "License": "GPL-3.0-or-later",
+        "Version": "0.3.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

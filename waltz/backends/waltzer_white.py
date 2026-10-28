@@ -2,11 +2,10 @@
 Rust renderer) instead of mpvpaper — the sole renderer for wlroots-based
 compositors now.
 
-waltzer-white deliberately has no option passthrough (by design — see
-waltzer-white/src/main.rs), so it can't do the mpv filter-chain tricks
-Span mode needs. Clone doesn't need that: one process renders the same
-decoded video to every monitor's own surface, so N monitors cost roughly
-the same as one, not N times as much.
+One process renders the same decoded video to every monitor's own
+surface, so Clone on N monitors costs roughly the same as one. Span is the
+same single decode drawn once at desktop size, each monitor showing its
+slice.
 """
 
 from ..monitors import detect_monitors
@@ -35,10 +34,8 @@ class WaltzerWhiteBackend(WallpaperBackend):
         self._renderer.play([m.name for m in monitors], path)
 
     def apply_span(self, path, monitors) -> None:
-        raise BackendUnavailable(
-            "Span mode isn't supported yet — waltzer-white has no option "
-            "passthrough, which is what the per-monitor crop math needs."
-        )
+        # each output with its place on the desktop: one decode, one slice each
+        self._renderer.play([f"{m.name}@{m.x},{m.y},{m.width},{m.height}" for m in monitors], path)
 
     def stop(self, output: str) -> None:
         self._renderer.stop(output)

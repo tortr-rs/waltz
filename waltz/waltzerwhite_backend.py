@@ -49,7 +49,8 @@ def _all_waltzerwhite_processes() -> List[Tuple[int, str, List[str]]]:
         args = [a.decode(errors="replace") for a in raw.split(b"\0") if a]
         if len(args) < 3:
             continue  # not a fully-formed invocation (path + >=1 output)
-        results.append((int(p.name), args[1], args[2:]))
+        # span outputs come as NAME@X,Y,W,H
+        results.append((int(p.name), args[1], [a.split("@", 1)[0] for a in args[2:]]))
     return results
 
 
@@ -112,9 +113,10 @@ class WaltzerWhiteManager:
         if not BINARY_PATH.exists():
             raise FileNotFoundError(str(BINARY_PATH))
         resolved = str(Path(path).expanduser().resolve())
-        for output in outputs:
+        names = [o.split("@", 1)[0] for o in outputs]
+        for output in names:
             self.stop(output)
-        key = tuple(sorted(outputs))
+        key = tuple(sorted(names))
         self._procs[key] = subprocess.Popen(
             [str(BINARY_PATH), resolved, *outputs],
             stdout=subprocess.DEVNULL,

@@ -11,7 +11,7 @@ gi.require_version("Adw", "1")
 gi.require_version("Gdk", "4.0")
 from gi.repository import Adw, Gdk, Gtk, GLib, Pango
 
-from .thumbnails import ensure_thumbnail, list_media_files
+from .thumbnails import ensure_thumbnail, kind_of, list_media_files
 
 THUMB_DISPLAY_WIDTH = 200
 THUMB_DISPLAY_HEIGHT = THUMB_DISPLAY_WIDTH * 9 // 16
@@ -27,6 +27,7 @@ class WaltzWindow(Adw.ApplicationWindow):
         self.waltz_app = waltz_app
         self.set_title("Waltz")
         self.set_default_size(960, 680)
+        self.add_css_class("waltz-window")
 
         self._executor = ThreadPoolExecutor(max_workers=4)
         self._current_folder: Optional[Path] = None
@@ -106,6 +107,12 @@ class WaltzWindow(Adw.ApplicationWindow):
         open_button.add_css_class("waltz-primary-action")
         open_button.connect("clicked", self._on_open_folder_clicked)
         header.pack_start(open_button)
+
+        self._shuffle_button = Gtk.Button(label="Shuffle Folder")
+        self._shuffle_button.set_tooltip_text("Play the whole folder in random order, a new one every 5 minutes")
+        self._shuffle_button.set_sensitive(False)
+        self._shuffle_button.connect("clicked", lambda _b: self._on_thumbnail_clicked(self._current_folder))
+        header.pack_start(self._shuffle_button)
 
         stop_button = Gtk.Button(label="Stop Wallpaper")
         stop_button.add_css_class("destructive-action")
@@ -235,8 +242,9 @@ class WaltzWindow(Adw.ApplicationWindow):
         self._tiles.clear()
 
         files = list_media_files(folder)
+        self._shuffle_button.set_sensitive(len(files) > 1)
         if not files:
-            self.set_status(f"No supported video/gif files found in {folder}")
+            self.set_status(f"No videos, pictures or shaders in {folder}")
             return
         self.set_status(f"{len(files)} file(s) in {folder}")
         for path in files:
@@ -246,7 +254,8 @@ class WaltzWindow(Adw.ApplicationWindow):
     # -- thumbnail grid -----------------------------------------------------
 
     def _add_tile(self, path: Path) -> None:
-        placeholder = Gtk.Image.new_from_icon_name("video-x-generic-symbolic")
+        icon = {"shader": "applications-graphics-symbolic", "image": "image-x-generic-symbolic"}
+        placeholder = Gtk.Image.new_from_icon_name(icon.get(kind_of(path), "video-x-generic-symbolic"))
         placeholder.set_pixel_size(48)
         placeholder.set_size_request(THUMB_DISPLAY_WIDTH, THUMB_DISPLAY_HEIGHT)
         placeholder.set_halign(Gtk.Align.CENTER)

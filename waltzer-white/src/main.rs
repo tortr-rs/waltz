@@ -9,9 +9,14 @@
 
 use std::env;
 use std::ffi::c_void;
+use std::fs;
+use std::os::fd::AsRawFd;
 use std::path::Path;
 use std::process::ExitCode;
 use std::rc::Rc;
+use std::time::{Duration, Instant};
+
+mod shader;
 
 use libmpv2::Mpv;
 use libmpv2::render::{OpenGLInitParams, RenderParam, RenderParamApiType};
@@ -31,16 +36,35 @@ struct OutputTarget {
     height: i32,
     configured: bool,
     closed: bool,
+    // Set by configure: draw now, even while paused (the size changed).
     need_redraw: bool,
+    // Set by the frame callback: the compositor wants the next frame.
+    frame_ready: bool,
+    // When we last asked for a frame callback that hasn't come back yet.
+    // Compositors hold the callback back while the surface is fully covered
+    // (a fullscreen game, a maximised window), so a callback that's been
+    // outstanding for HIDDEN_AFTER means nobody can see this output.
+    pending_since: Option<Instant>,
     // Must stay alive as long as egl_surface references it.
     _egl_window: Option<wayland_egl::WlEglSurface>,
     egl_surface: Option<khronos_egl::Surface>,
+    // Span: where this output sits on the desktop (x, y, w, h), from
+    // "NAME@X,Y,W,H" on the command line.
+    span: Option<(i32, i32, i32, i32)>,
 }
 
 impl OutputTarget {
-    fn new(name: String) -> Self {
+    fn new(arg: String) -> Self {
+        let (name, span) = match arg.split_once('@') {
+            Some((n, g)) => {
+                let v: Vec<i32> = g.split(',').filter_map(|x| x.parse().ok()).collect();
+                (n.to_string(), (v.len() == 4).then(|| (v[0], v[1], v[2], v[3])))
+            }
+            None => (arg, None),
+        };
         OutputTarget {
             name,
+            span,
             output: None,
             wl_surface: None,
             layer_surface: None,
@@ -49,6 +73,8 @@ impl OutputTarget {
             configured: false,
             closed: false,
             need_redraw: false,
+            frame_ready: false,
+            pending_since: None,
             _egl_window: None,
             egl_surface: None,
         }
@@ -157,7 +183,9 @@ impl Dispatch<wl_callback::WlCallback, usize> for State {
         _: &QueueHandle<Self>,
     ) {
         if let wl_callback::Event::Done { .. } = event {
-            state.targets[*idx].need_redraw = true;
+            let t = &mut state.targets[*idx];
+            t.frame_ready = true;
+            t.pending_since = None;
         }
     }
 }
@@ -166,11 +194,42 @@ wayland_client::delegate_noop!(State: ignore wl_compositor::WlCompositor);
 wayland_client::delegate_noop!(State: ignore wl_surface::WlSurface);
 wayland_client::delegate_noop!(State: ignore zwlr_layer_shell_v1::ZwlrLayerShellV1);
 
+/// How long a frame callback may stay unanswered before the output counts as
+/// covered and playback pauses.
+const HIDDEN_AFTER: Duration = Duration::from_secs(1);
+/// How often to look at the power supply.
+const POWER_EVERY: Duration = Duration::from_secs(5);
+/// A folder is a playlist: the next file after this long, counting only
+/// time it was actually showing. WALTZER_EVERY=SECONDS changes it.
+const NEXT_EVERY: Duration = Duration::from_secs(300);
+
+/// True when this is a laptop running on its battery: there's a system
+/// battery (not a mouse's or a controller's — those have scope "Device") and
+/// a mains/USB supply, and none of the supplies is online. A desktop with no
+/// battery never counts.
+fn on_battery() -> bool {
+    let Ok(dir) = fs::read_dir("/sys/class/power_supply") else { return false };
+    let read = |p: &Path, f: &str| fs::read_to_string(p.join(f)).unwrap_or_default().trim().to_string();
+    let (mut battery, mut mains, mut online) = (false, false, false);
+    for e in dir.flatten() {
+        let p = e.path();
+        match read(&p, "type").as_str() {
+            "Battery" if read(&p, "scope") != "Device" => battery = true,
+            "Mains" | "USB" => {
+                mains = true;
+                online |= read(&p, "online") == "1";
+            }
+            _ => {}
+        }
+    }
+    battery && mains && !online
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = env::args().collect();
     if args.len() < 3 {
         eprintln!(
-            "usage: {} <video-path> <output-name> [output-name ...]",
+            "usage: {} <path> <output>[@X,Y,W,H] ...\n  path: a video, picture, folder or .frag shader\n  @X,Y,W,H on every output: span one video across them",
             args.first().map(String::as_str).unwrap_or("waltzer-white")
         );
         return ExitCode::FAILURE;
@@ -365,10 +424,40 @@ fn main() -> ExitCode {
         return ExitCode::FAILURE;
     }
 
+    // --- what to draw: a shader, or mpv (a video, a picture, a folder) ---
+    gl::load_with(|name| egl.get_proc_address(name).map_or(std::ptr::null(), |f| f as *const c_void));
+    let mut shader = None;
+    if shader::is_shader(&video_path) {
+        let src = match fs::read_to_string(&video_path) {
+            Ok(s) => s,
+            Err(e) => {
+                eprintln!("waltzer-white: can't read {video_path}: {e}");
+                return ExitCode::FAILURE;
+            }
+        };
+        match shader::Shader::new(&src) {
+            Ok(s) => shader = Some(s),
+            Err(e) => {
+                eprintln!("waltzer-white: shader error in {video_path}:\n{e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    }
+    let folder = Path::new(&video_path).is_dir();
+    let every = env::var("WALTZER_EVERY").ok().and_then(|v| v.parse().ok()).map(Duration::from_secs).unwrap_or(NEXT_EVERY);
+
     // --- mpv setup (one shared decode) ------------------------------------
     let mpv = match Mpv::with_initializer(|init| {
         init.set_option("hwdec", "auto")?;
         init.set_option("loop-file", "inf")?;
+        // pictures stay up instead of moving on after a few seconds
+        init.set_option("image-display-duration", "inf")?;
+        // fill the screen, cropping what sticks out, never black bars
+        init.set_option("panscan", "1.0")?;
+        if folder {
+            init.set_option("loop-playlist", "inf")?;
+            init.set_option("shuffle", "yes")?;
+        }
         init.set_option("aid", "no")?; // fully disable audio, not just mute
         init.set_option("vo", "libmpv")?;
         // Multi-threaded software decode allocates per-thread frame buffers —
@@ -410,10 +499,35 @@ fn main() -> ExitCode {
     // loadfile only after the render context exists: the "libmpv" VO has
     // nothing to attach to otherwise, and mpv fails the file with
     // MPV_ERROR_NOTHING_TO_PLAY instead of actually starting playback.
-    if let Err(e) = mpv.command("loadfile", &[&video_path]) {
-        eprintln!("waltzer-white: loadfile failed: {e}");
-        return ExitCode::FAILURE;
+    if shader.is_none() {
+        if let Err(e) = mpv.command("loadfile", &[&video_path]) {
+            eprintln!("waltzer-white: loadfile failed: {e}");
+            return ExitCode::FAILURE;
+        }
     }
+
+    // --- span: one big picture of the whole desktop, each output blits its part
+    let spanned = state.targets.iter().all(|t| t.span.is_some());
+    let (mut fbo, mut tex) = (0u32, 0u32);
+    let (mut bw, mut bh) = (0, 0);
+    if spanned {
+        for t in &state.targets {
+            let (x, y, w, h) = t.span.unwrap();
+            bw = bw.max(x + w);
+            bh = bh.max(y + h);
+        }
+        unsafe {
+            gl::GenTextures(1, &mut tex);
+            gl::BindTexture(gl::TEXTURE_2D, tex);
+            gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGBA8 as i32, bw, bh, 0, gl::RGBA, gl::UNSIGNED_BYTE, std::ptr::null());
+            gl::GenFramebuffers(1, &mut fbo);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, fbo);
+            gl::FramebufferTexture2D(gl::FRAMEBUFFER, gl::COLOR_ATTACHMENT0, gl::TEXTURE_2D, tex, 0);
+            gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+        }
+    }
+    // the big picture is drawn once per round, not once per output
+    let mut span_fresh = false;
 
     // --- main loop --------------------------------------------------------
     // The frame callback must be requested *before* swap_buffers: Wayland
@@ -426,16 +540,60 @@ fn main() -> ExitCode {
     // (per libmpv2's own doc comment on RenderContext::render), so calling
     // it once per output per tick against one shared decode is safe — it
     // does not re-advance playback each time.
+    //
+    // Playback pauses when every output is covered (see pending_since) or the
+    // laptop is on battery, and picks up again by itself. While paused nothing
+    // is decoded or drawn: no new frame callbacks are asked for, so an
+    // uncovered output stays quiet until it's unpaused.
+    let mut paused = false;
+    let mut battery = false;
+    let mut power_checked: Option<Instant> = None;
+    // folder playlist: time shown since the last switch
+    let mut shown = Duration::ZERO;
+    let mut tick = Instant::now();
     loop {
         if state.targets.iter().all(|t| t.closed) {
             break;
         }
+
+        if power_checked.map_or(true, |t| t.elapsed() >= POWER_EVERY) {
+            battery = on_battery();
+            power_checked = Some(Instant::now());
+        }
+        let live = || state.targets.iter().filter(|t| t.configured && !t.closed && t.egl_surface.is_some());
+        let covered = live().all(|t| t.pending_since.map_or(false, |s| s.elapsed() >= HIDDEN_AFTER));
+        // a callback that came back means somebody can see it again
+        let seen = live().any(|t| t.frame_ready);
+        let pause = battery || (covered && !seen);
+        if !paused {
+            shown += tick.elapsed();
+            if folder && shown >= every {
+                let _ = mpv.command("playlist-next", &[]);
+                shown = Duration::ZERO;
+            }
+        }
+        tick = Instant::now();
+        if pause != paused {
+            match shader.as_mut() {
+                Some(s) => s.set_paused(pause),
+                None => {
+                    let _ = mpv.set_property("pause", pause);
+                }
+            }
+            paused = pause;
+            if !paused {
+                for t in state.targets.iter_mut() {
+                    t.need_redraw = true;
+                }
+            }
+        }
+
         for i in 0..state.targets.len() {
-            let (configured, closed, need_redraw, width, height) = {
+            let (configured, closed, need_redraw, frame_ready, width, height) = {
                 let t = &state.targets[i];
-                (t.configured, t.closed, t.need_redraw, t.width, t.height)
+                (t.configured, t.closed, t.need_redraw, t.frame_ready, t.width, t.height)
             };
-            if !configured || closed || !need_redraw {
+            if !configured || closed || !(need_redraw || (frame_ready && !paused)) {
                 continue;
             }
             let egl_surface = match state.targets[i].egl_surface {
@@ -443,22 +601,65 @@ fn main() -> ExitCode {
                 None => continue,
             };
             state.targets[i].need_redraw = false;
-            state.targets[i].wl_surface.as_ref().unwrap().frame(&qh, i);
+            state.targets[i].frame_ready = false;
+            if !paused {
+                state.targets[i].wl_surface.as_ref().unwrap().frame(&qh, i);
+                state.targets[i].pending_since = Some(Instant::now());
+            }
             if let Err(e) = egl.make_current(egl_display, Some(egl_surface), Some(egl_surface), Some(egl_context)) {
                 eprintln!("waltzer-white: eglMakeCurrent failed for {:?}: {e}", state.targets[i].name);
                 continue;
             }
-            if let Err(e) = render_ctx.render::<GlCtx>(0, width, height, true) {
+            if let (true, Some((x, y, w, h))) = (spanned, state.targets[i].span) {
+                if !span_fresh {
+                    let ok = match shader.as_mut() {
+                        Some(s) => {
+                            unsafe { gl::BindFramebuffer(gl::FRAMEBUFFER, fbo) };
+                            s.render_to(fbo, bw, bh);
+                            true
+                        }
+                        None => render_ctx.render::<GlCtx>(fbo as i32, bw, bh, true).is_ok(),
+                    };
+                    span_fresh = ok;
+                }
+                unsafe {
+                    gl::BindFramebuffer(gl::READ_FRAMEBUFFER, fbo);
+                    gl::BindFramebuffer(gl::DRAW_FRAMEBUFFER, 0);
+                    // gl's rows count from the bottom
+                    gl::BlitFramebuffer(x, bh - y - h, x + w, bh - y, 0, 0, width, height,
+                                        gl::COLOR_BUFFER_BIT, gl::LINEAR);
+                    gl::BindFramebuffer(gl::FRAMEBUFFER, 0);
+                }
+            } else if let Some(s) = shader.as_mut() {
+                s.render(width, height);
+            } else if let Err(e) = render_ctx.render::<GlCtx>(0, width, height, true) {
                 eprintln!("waltzer-white: render failed for {:?}: {e}", state.targets[i].name);
                 continue;
             }
             let _ = egl.swap_buffers(egl_display, egl_surface);
         }
-        if let Err(e) = event_queue.blocking_dispatch(&mut state) {
+        span_fresh = false;
+        // Wait for the compositor, but at most half a second, so the checks
+        // above run even while no callbacks come (covered, or paused).
+        if let Err(e) = wait(&mut event_queue, &mut state, 500) {
             eprintln!("waltzer-white: dispatch failed: {e}");
             break;
         }
     }
 
     ExitCode::SUCCESS
+}
+
+/// blocking_dispatch with a timeout in milliseconds.
+fn wait(queue: &mut wayland_client::EventQueue<State>, state: &mut State, ms: i32) -> Result<(), String> {
+    queue.flush().map_err(|e| e.to_string())?;
+    if let Some(guard) = queue.prepare_read() {
+        let mut pfd = libc::pollfd { fd: guard.connection_fd().as_raw_fd(), events: libc::POLLIN, revents: 0 };
+        let n = unsafe { libc::poll(&mut pfd, 1, ms) };
+        if n > 0 {
+            guard.read().map_err(|e| e.to_string())?;
+        }
+    }
+    queue.dispatch_pending(state).map_err(|e| e.to_string())?;
+    Ok(())
 }

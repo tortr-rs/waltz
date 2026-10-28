@@ -1,6 +1,6 @@
 [package]
 name = "waltzer-white"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 
 [[bin]]
@@ -15,6 +15,8 @@ wayland-protocols = { version = "0.32", features = ["client"] }
 khronos-egl = { version = "6", features = ["dynamic"] }
 wayland-egl = "0.32"
 libloading = "0.8"
+libc = "0.2"
+gl = "0.14"
 
 [profile.release]
 opt-level = 2

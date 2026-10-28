@@ -13,7 +13,18 @@ from .paths import thumbnail_dir
 
 THUMB_WIDTH = 320
 
-SUPPORTED_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".gif", ".m4v"}
+VIDEO_EXTENSIONS = {".mp4", ".mkv", ".webm", ".mov", ".avi", ".gif", ".m4v"}
+IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".avif", ".jxl"}
+# Shadertoy-style fragment shaders, drawn live by waltzer-white
+SHADER_EXTENSIONS = {".frag", ".glsl", ".shader"}
+SUPPORTED_EXTENSIONS = VIDEO_EXTENSIONS | IMAGE_EXTENSIONS | SHADER_EXTENSIONS
+
+
+def kind_of(path) -> str:
+    ext = Path(path).suffix.lower()
+    if ext in SHADER_EXTENSIONS:
+        return "shader"
+    return "image" if ext in IMAGE_EXTENSIONS else "video"
 
 
 def list_media_files(folder) -> List[Path]:
@@ -38,6 +49,8 @@ def thumbnail_path_for(path: Path) -> Path:
 def ensure_thumbnail(path, seek: str = "00:00:01") -> Optional[Path]:
     """Extract (and cache) a thumbnail frame. Blocking — call from a worker thread."""
     path = Path(path)
+    if kind_of(path) == "shader":
+        return None  # nothing to grab a frame from; the tile keeps its icon
     out = thumbnail_path_for(path)
     if out.exists():
         return out

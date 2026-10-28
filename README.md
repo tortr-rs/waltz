@@ -1,8 +1,9 @@
 # Waltz
 
-A GUI wallpaper engine for Linux. Point it at a folder of your own video/gif
-files, browse thumbnails, click one to set it as your wallpaper — per
-monitor, or cloned to every monitor at once.
+A GUI wallpaper engine for Linux. Point it at a folder of videos, gifs,
+pictures or shaders, browse thumbnails, click one to set it as your
+wallpaper: per monitor, cloned to every monitor, or spanned across all of
+them. Or shuffle the whole folder.
 
 **[Download the latest release](https://github.com/tortr-rs/waltz/releases/latest)**
 — extract the tarball and run `./scripts/install.sh`.
@@ -14,8 +15,19 @@ a segmented target strip (Singular/Clone/Span), a "currently playing"
 indicator on the grid, startup persistence (relaunches your saved wallpaper
 automatically), opt-in autostart at login, and a tray icon (open/stop/quit).
 
-Not yet implemented: GNOME and KDE support (see below — researched, not
-wired up), and Span mode on the new Rust backend (see below).
+New in 0.3:
+
+- **Pauses by itself** when every monitor is covered (a fullscreen game, a
+  maximized window) or the laptop runs on battery. Nothing is decoded or
+  drawn while paused; measured 0 CPU ticks covered vs. 14 per 5 s visible.
+- **Pictures** (jpg, png, webp, avif, jxl...), cropped to fill the screen.
+- **Shaders**: Shadertoy-style `.frag`/`.glsl` files, drawn live. Two come
+  with Waltz in `shaders/` (aqua bubbles, aurora).
+- **Shuffle Folder**: the whole folder in random order, a new one every 5
+  minutes (`WALTZER_EVERY=SECONDS` changes it).
+- **Span**: one video across every monitor, from a single decode.
+- **GNOME** (through Hanabi) and **KDE Plasma** (Waltz's own wallpaper plugin).
+- A new frutiger aero look.
 
 ## Backends
 
@@ -28,27 +40,24 @@ assume one approach works everywhere:
   for decode, raw `wayland-client` + `wayland-protocols-wlr` for
   wlr-layer-shell-unstable-v1 background surfaces, EGL for the GL context.
   Deliberately has **no option passthrough** — CLI is just
-  `waltzer-white <path> <output1> [output2 ...]`, hardware decode/loop/mute
-  hardcoded. A single process shares one decode across every output it's
-  given, so Clone mode costs about the same memory for N monitors as for
-  one. That no-passthrough tradeoff means it can't yet do Span mode's
-  per-monitor crop filters; Singular and Clone work fully.
+  `waltzer-white <path> <output>[@X,Y,W,H] ...`, hardware decode/loop/mute
+  hardcoded. The path can be a video, picture, folder or shader. A single
+  process shares one decode across every output it's given, so Clone mode
+  costs about the same memory for N monitors as for one. With `@X,Y,W,H`
+  on every output it draws once at desktop size and each output shows its
+  slice: that's Span.
 - **Generic X11 (i3, bspwm, Openbox, ...)** — `xwinwrap` + `mpv`, embedding
   into the root window, `xrandr` for monitor geometry. Implemented from
   xwinwrap's documented usage; not verified against a live X server (this
   project was built on a Wayland-only machine).
-- **GNOME** — not supported yet. Mutter doesn't implement wlr-layer-shell
-  (an open GNOME feature request with no timeline). The real path forward
-  is the [Hanabi](https://github.com/jeffshee/gnome-ext-hanabi) GNOME Shell
-  extension (genuinely does video wallpapers on GNOME Wayland, scriptable
-  via `gsettings`) — not wired up, since it requires the user to already
-  have it installed/enabled and doesn't support multiple monitors yet.
-- **KDE Plasma** — not supported yet. The closest option is the
-  [Smart Video Wallpaper Reborn](https://github.com/luisbocanegra/plasma-smart-video-wallpaper-reborn)
-  plugin, but it has no DBus/CLI control — only a config file that needs
-  `plasmashell` restarted (a disruptive full-shell reload) to pick up
-  changes. Waltz tells GNOME/KDE users this directly rather than silently
-  failing.
+- **GNOME** — through the [Hanabi](https://github.com/jeffshee/gnome-ext-hanabi)
+  Shell extension, set with `gsettings` (Mutter has no wlr-layer-shell).
+  Install Hanabi first; Waltz says so if it's missing. One video on every
+  monitor, no Span, no shaders. Folders use Hanabi's own rotation.
+- **KDE Plasma** — Waltz's own Plasma 6 wallpaper plugin (`plasma/`), copied
+  to `~/.local/share/plasma/wallpapers` and switched to live through
+  plasmashell's scripting interface, no restart. Videos and pictures per
+  screen or cloned; no Span, shaders or shuffle yet.
 
 ## Why this stack
 
@@ -84,6 +93,8 @@ System packages (Arch package names shown; adjust for your distro):
 - `python-gobject`, `gtk4`, `libadwaita` — the GUI
 - `libayatana-appindicator` (or `libappindicator-gtk3` as a fallback) — the tray icon
 - `rust` (`cargo`/`rustc`) — to build `waltzer-white`; not needed once it's built
+- `qt6-multimedia` — only on KDE Plasma, for the wallpaper plugin
+- the Hanabi extension — only on GNOME
 - `xwinwrap`, `xrandr` — only if you're on generic X11, not a wlroots compositor
 
 `mpvpaper` is no longer a dependency — waltzer-white replaced it on
